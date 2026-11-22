@@ -1,0 +1,89 @@
+# EV-S01-T12a-003 redis + runtime hardening
+2026-11-22 19:22:06.186 UTC [156] FATAL:  password authentication failed for user "postgres"
+## redis noauth
+NOAUTH Authentication required.
+
+## redis wrongauth
+AUTH failed: WRONGPASS invalid username-password pair or user is disabled.
+NOAUTH Authentication required.
+
+## redis auth ok + config
+PONG
+appendonly
+yes
+maxmemory-policy
+noeviction
+maxmemory
+268435456
+save
+
+protected-mode
+yes
+OK
+v
+## argv
+redis-server *:6379                                                                                                                   
+sh -c for p in /proc/[0-9]*; do tr "\0" " " < $p/cmdline; echo; done 
+## env redis
+0
+## env pg (names only)
+DOCKER_PG_LLVM_DEPS GOSU_VERSION HOME HOSTNAME LANG PATH PGDATA PG_MAJOR PG_SHA256 PG_VERSION POSTGRES_INITDB_ARGS POSTGRES_PASSWORD_FILE POSTGRES_USER 
+## inspect redis env names
+PATH
+REDIS_VERSION
+
+## inspect pg env
+POSTGRES_PASSWORD_FILE=/run/secrets/postgres_superuser_password
+## inspect cmd redis
+0
+## hardening aegissoc-test-postgres-1
+user=70:70 ro=true capdrop=[ALL] capadd=[] secopt=[no-new-privileges:true] priv=false mem=536870912 pids=200 ports=map[] published=map[5432/tcp:[]] netmode=aegissoc-test_app_net restart=no tmpfs=map[/tmp:size=16m,mode=1777,noexec,nosuid /var/run/postgresql:size=1m,uid=70,gid=70,mode=0755,noexec,nosuid]
+volume aegissoc-test_pg_data /var/lib/postgresql/data rw=true
+bind  /docker-entrypoint-initdb.d rw=false
+bind  /run/secrets/postgres_superuser_password rw=false
+bind  /run/secrets/postgres_owner_password rw=false
+bind  /run/secrets/postgres_app_password rw=false
+
+uid=70(postgres) gid=70(postgres) groups=70(postgres)
+CapEff:	0000000000000000
+NoNewPrivs:	1
+touch: /etc/x: Read-only file system
+## hardening aegissoc-test-redis-1
+user=999:999 ro=true capdrop=[ALL] capadd=[] secopt=[no-new-privileges:true] priv=false mem=402653184 pids=100 ports=map[] published=map[6379/tcp:[]] netmode=aegissoc-test_app_net restart=no tmpfs=map[/tmp:size=1m,uid=999,gid=999,mode=0700,noexec,nosuid]
+volume aegissoc-test_redis_data /data rw=true
+bind  /run/secrets/redis_password rw=false
+
+uid=999(redis) gid=999(ping) groups=999(ping)
+CapEff:	0000000000000000
+NoNewPrivs:	1
+touch: /etc/x: Read-only file system
+tmpfs on /tmp type tmpfs (rw,nosuid,nodev,noexec,relatime,size=1024k,mode=700,uid=999,gid=999,inode64)
+tmpfs on /data type tmpfs (rw,nosuid,relatime,size=65536k,mode=700,uid=999,gid=999,inode64)
+## network
+internal=true driver=bridge
+## internet from pg
+wget: can't connect to remote host (1.1.1.1): Network unreachable
+rc=0
+## volumes
+aegissoc-test_pg_data map[device:tmpfs o:size=256m,uid=70,gid=70,mode=0700,nosuid type:tmpfs]
+aegissoc-test_redis_data map[device:tmpfs o:size=64m,uid=999,gid=999,mode=0700,nosuid type:tmpfs]
+## health
+/aegissoc-test-postgres-1 healthy
+/aegissoc-test-redis-1 healthy
+## secret mount perms
+total 12
+-rw-r--r--    1 1000     1000            43 Nov 22 19:21 postgres_app_password
+-rw-r--r--    1 1000     1000            43 Nov 22 19:21 postgres_owner_password
+-rw-r--r--    1 1000     1000            43 Nov 22 19:21 postgres_superuser_password
+total 4
+-rw-r--r--    1 1000     1000            43 Nov 22 19:21 redis_password
+## host secrets dir
+drwx------ 2 fabiano fabiano 120 nov 22 16:21 /run/user/1000/aegissoc-test-secrets-1000
+total  
+-rw-r--r-- fabiano postgres_app_password
+-rw-r--r-- fabiano postgres_owner_password
+-rw-r--r-- fabiano postgres_superuser_password
+-rw-r--r-- fabiano redis_password
+## data on tmpfs on host?
+tmpfs                tmpfs         262144     47204    214940  18% /var/lib/postgresql/data
+tmpfs                tmpfs          65536        12     65524   0% /data

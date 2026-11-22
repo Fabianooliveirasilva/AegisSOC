@@ -71,3 +71,24 @@ Notes (S1-T03): the QA suite must be run with the export's `pyproject.toml` (`-c
 | EV-S01-T03-R1-H | (harness) | - | e9d1473 | - | QA test sources as run (formatted; supersede the 61bbdd6 hashes of EV-S01-T03-H) | - | qa/api/core_s1t03/ | `conftest.py`: cc4d5339e1e0b73abe97f0a790d04454d246721a9c8753ae7ee5dc9e725b5290<br>`test_qa_config.py`: 1ca488bf105b010e30a037c5d1a441dc407d0a0dc3e734b29e24d3b04cf0acd6<br>`test_qa_cursor.py`: 7cc52a0e1d1295dada6a9892617df5c60cb177c6040da080ce25f7182932bfc8<br>`test_qa_http_problem_and_request_id.py`: 3bf9215987ca4cbe3466326322d518517b9fde82aa31667d2a03059a53288bb1<br>`test_qa_logging_and_ids_clock.py`: 1e17726007b90a31ff113ee5bb8ddadbd5e9dc7199f7e4a72646761b555b4aed |
 
 Notes (R1): `make scan` (gitleaks) on the working tree: no leaks, exit 0 (transcript not archived). The mutation harness (`mutate2.py`) lives in the session scratchpad, not in the repo. QA suite run needs the export's `pyproject.toml` and `--cov-fail-under=0` as before.
+
+## S1-T12a (commit 3037b42)
+
+| ID | Requirement | TC | Commit | UTC | Command | Exit | Artefact | SHA-256 |
+|---|---|---|---|---|---|---|---|---|
+| EV-S01-T12a-001 | SR-23, SR-24, SR-27 | protocol §6 | 3037b42 | 2026-11-22T19:21Z | in a clean git archive export: `make test-db-up` (x2), `make test-db-down` (x2) | 0 each | EV-S01-T12a-001-test-db-up-down.txt | c815ca8fe6868394d0e17424901962a372aa4c5b51651f8757cf32c9b60c57c8 |
+| EV-S01-T12a-002 | SR-27 | - | 3037b42 | 2026-11-22T19:22Z | `docker exec` psql checks (roles, ownership, privileges, auth) | n/a (see file) | EV-S01-T12a-002-postgres-roles-auth.txt | 1cd0192cade3e788d18f65cca2665da8cfc0ccf71919eab57f1044af2be8832e |
+| EV-S01-T12a-003 | SR-23, SR-24 | - | 3037b42 | 2026-11-22T19:22Z | `docker inspect` / `docker exec` redis and hardening checks | n/a (see file) | EV-S01-T12a-003-redis-hardening.txt | 5ea0daba9cc9b691754d959a73797bd36c30e99ddacedb680d820f849e38347b |
+| EV-S01-T12a-004 | SR-16, SR-27 | - | 3037b42 | 2026-11-22T19:23Z | `docker compose -p aegissoc-qa-t12a up -d --wait` with mode-600 secrets (throwaway project, export copy) | 1 (expected defect reproduced) | EV-S01-T12a-004-persistent-secrets-perm.txt | 99127c865dd1ccc4265e6f7c2125e5e20b516ac1f457a4acb1336c7ffaefb9f0 |
+| EV-S01-T12a-005 | SR-23, SR-24 | - | 3037b42 | 2026-11-22T19:31Z | `docker compose config` (test overlay, persistent), failure paths, shellcheck | 0 / see file | EV-S01-T12a-005-config-failurepaths.txt | a3c885b8eb1129f90c3e6fde154e8c7f94064c62a1038fa7005e7b5b15cf8ee5 |
+
+Notes (S1-T12a): transcripts are partly hand-assembled from the session outputs (headers say so); passwords were never printed. Containers named aegis-sec-t12a-* belonged to the security reviewer and were not touched.
+
+### S1-T12a re-validation 1 (commit e153e3a)
+
+| ID | Requirement | TC | Commit | UTC | Command | Exit | Artefact | SHA-256 |
+|---|---|---|---|---|---|---|---|---|
+| EV-S01-T12a-006 | SR-23, SR-24 | protocol §6 | e153e3a | 2026-11-22T19:51Z | clean git archive: `make test-db-up` x2, `make test-db-env`, `make test-db-down` x2 | 0 each | EV-S01-T12a-006-revalidation1-e153e3a.txt (section 006) | faa33305bf60defb48893874206eb8b15df3fda829d8ac561ddbcdabe8d1335d |
+| EV-S01-T12a-007 | SR-27 | protocol §6 | e153e3a | 2026-11-22T19:55Z | host psql (docker, --network host) as aegis_owner/aegis_app via printed values; owner create/grant/drop cycle; CONNECT checks; log scan | n/a (see file) | EV-S01-T12a-006-revalidation1-e153e3a.txt (section 007) | faa33305bf60defb48893874206eb8b15df3fda829d8ac561ddbcdabe8d1335d |
+| EV-S01-T12a-008 | SR-16, SR-23 | - | e153e3a | 2026-11-22T19:52Z | throwaway projects aegissoc-qa-sec03fix/ctl/hc/redis: SEC-03 marker test with control, failed-init healthcheck, special-char password, empty redis secret | n/a (see file) | EV-S01-T12a-006-revalidation1-e153e3a.txt (section 008) | faa33305bf60defb48893874206eb8b15df3fda829d8ac561ddbcdabe8d1335d |
+| EV-S01-T12a-009 | SR-16 | - | e153e3a | 2026-11-22T20:30Z | SEC-04 refusal paths, concurrent lock, stray lock; shellcheck on recipes and inline scripts | n/a (see file) | EV-S01-T12a-006-revalidation1-e153e3a.txt (section 009 + shellcheck) | faa33305bf60defb48893874206eb8b15df3fda829d8ac561ddbcdabe8d1335d |
