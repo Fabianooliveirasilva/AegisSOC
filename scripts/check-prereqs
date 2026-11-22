@@ -1,0 +1,75 @@
+#!/bin/sh
+# Check developer prerequisites (docs/DEPLOYMENT.md section 0).
+# Prints what is missing or too old and exits non-zero. gitleaks is optional.
+set -u
+
+PATH="$HOME/.local/bin:$PATH"
+export PATH
+
+fail=0
+
+# ver_ge ACTUAL MINIMUM -> success if ACTUAL >= MINIMUM (dotted numeric compare)
+ver_ge() {
+  a=$1 m=$2
+  for i in 1 2 3; do
+    ap=$(printf '%s' "$a" | awk -F. -v n="$i" '{print $n + 0}')
+    mp=$(printf '%s' "$m" | awk -F. -v n="$i" '{print $n + 0}')
+    [ "$ap" -gt "$mp" ] && return 0
+    [ "$ap" -lt "$mp" ] && return 1
+  done
+  return 0
+}
+
+# first x.y[.z] number found in the input
+extract() { grep -Eo '[0-9]+(\.[0-9]+){1,2}' | head -n 1; }
+
+check() { # name minimum actual-version-or-empty hint
+  name=$1 min=$2 actual=$3 hint=$4
+  if [ -z "$actual" ]; then
+    printf 'MISSING  %-16s need >= %-7s %s\n' "$name" "$min" "$hint"
+    fail=1
+  elif ver_ge "$actual" "$min"; then
+    printf 'ok       %-16s %s (>= %s)\n' "$name" "$actual" "$min"
+  else
+    printf 'TOO OLD  %-16s found %s, need >= %s  %s\n' "$name" "$actual" "$min" "$hint"
+    fail=1
+  fi
+}
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+v=""; have docker && v=$(docker --version 2>/dev/null | extract)
+check "docker" 25 "$v" "(Docker Engine)"
+
+v=""; have docker && v=$(docker compose version 2>/dev/null | extract)
+check "docker compose" 2.24 "$v" "(Compose v2 plugin)"
+
+v=""; have make && v=$(make --version 2>/dev/null | head -n 1 | extract)
+check "make" 4 "$v" "(GNU make)"
+
+v=""; have git && v=$(git --version 2>/dev/null | extract)
+check "git" 2.40 "$v" ""
+
+v=""; have uv && v=$(uv --version 2>/dev/null | extract)
+check "uv" 0.5 "$v" "(https://docs.astral.sh/uv/)"
+
+v=""; have node && v=$(node --version 2>/dev/null | extract)
+check "node" 22 "$v" "(Node.js 22 LTS)"
+
+v=""; have pnpm && v=$(pnpm --version 2>/dev/null | extract)
+check "pnpm" 9 "$v" "(corepack enable)"
+
+v=""; have pre-commit && v=$(pre-commit --version 2>/dev/null | extract)
+check "pre-commit" 3 "$v" "(uv tool install pre-commit)"
+
+if have gitleaks; then
+  printf 'ok       %-16s present (optional)\n' "gitleaks"
+else
+  printf 'optional %-16s not installed; the pre-commit hook uses Docker\n' "gitleaks"
+fi
+
+if [ "$fail" -ne 0 ]; then
+  echo "check-prereqs: prerequisites missing or too old (see above)" >&2
+  exit 1
+fi
+echo "check-prereqs: all required prerequisites present"

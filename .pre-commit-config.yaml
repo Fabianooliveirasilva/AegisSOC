@@ -1,0 +1,29 @@
+# Hook revisions are pinned (verified 2026-11-21). Update deliberately.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.6
+    hooks:
+      - id: ruff-check
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.1.0
+    hooks:
+      - id: prettier
+        # Markdown is excluded: the approved planning docs are not reformatted
+        # wholesale. Enabling it is a maintainer decision (separate formatting PR).
+        types_or: [yaml, json, ts, tsx, javascript, css]
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      # Docker-based hook; the image tag is pinned here (upstream entry is unpinned).
+      - id: gitleaks-docker
+        entry: ghcr.io/gitleaks/gitleaks:v8.30.1 git --pre-commit --redact --staged --verbose

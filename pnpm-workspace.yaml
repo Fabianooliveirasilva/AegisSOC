@@ -1,0 +1,3 @@
+packages:
+  - "apps/web"
+  - "qa/e2e"

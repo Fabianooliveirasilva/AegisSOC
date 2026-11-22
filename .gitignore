@@ -36,3 +36,9 @@ qa/reports/**/raw/
 
 # Local Claude settings
 .claude/settings.local.json
+
+# Generated secrets (SR-16) - the directory is never committed
+infrastructure/compose/secrets/*
+
+# pnpm / local tooling
+.pnpm-store/
