@@ -1,0 +1,59 @@
+[importlinter]
+root_package = aegissoc
+include_external_packages = False
+
+# (1) core is a leaf: it imports no other aegissoc package.
+[importlinter:contract:core-is-a-leaf]
+name = aegissoc.core imports no other aegissoc package
+type = forbidden
+source_modules =
+    aegissoc.core
+forbidden_modules =
+    aegissoc.platform
+    aegissoc.observability
+    aegissoc.migrations
+    aegissoc.main
+    aegissoc.cli
+
+# (2) layering inside each module: api -> service -> repository -> models -> schemas
+[importlinter:contract:auth-layers]
+name = platform.auth layers (api > service > repository > models > schemas)
+type = layers
+layers =
+    aegissoc.platform.auth.api
+    aegissoc.platform.auth.service
+    aegissoc.platform.auth.repository
+    aegissoc.platform.auth.models
+    aegissoc.platform.auth.schemas
+
+[importlinter:contract:audit-layers]
+name = platform.audit layers (api > service > models > schemas)
+type = layers
+layers =
+    aegissoc.platform.audit.api
+    aegissoc.platform.audit.service
+    aegissoc.platform.audit.models
+    aegissoc.platform.audit.schemas
+
+# (3) no module imports another module's models or repository (use its service).
+# allow_indirect_imports: a legitimate chain through a service must not count.
+[importlinter:contract:no-foreign-auth-internals]
+name = Only platform.auth touches platform.auth models and repository
+type = forbidden
+source_modules =
+    aegissoc.platform.audit
+    aegissoc.observability
+forbidden_modules =
+    aegissoc.platform.auth.models
+    aegissoc.platform.auth.repository
+allow_indirect_imports = True
+
+[importlinter:contract:no-foreign-audit-internals]
+name = Only platform.audit touches platform.audit models
+type = forbidden
+source_modules =
+    aegissoc.platform.auth
+    aegissoc.observability
+forbidden_modules =
+    aegissoc.platform.audit.models
+allow_indirect_imports = True

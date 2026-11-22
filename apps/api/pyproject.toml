@@ -1,0 +1,84 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aegissoc"
+version = "0.0.0"
+description = "AegisSOC backend (API and worker share this package; different entrypoints)."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "MIT" }
+dependencies = [
+    "fastapi>=0.165.0",
+    "uvicorn[standard]>=0.54.0",
+    "pydantic>=2.14.4",
+    "pydantic-settings>=2.16.3",
+    "sqlalchemy[asyncio]>=2.1.9",
+    "asyncpg>=0.32.0",
+    "alembic>=1.20.1",
+    "redis>=8.1.0",
+    "argon2-cffi>=25.1.0",
+    "structlog>=26.1.0",
+    "uuid6>=2025.0.1",
+]
+
+[project.scripts]
+aegissoc = "aegissoc.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.5.0",
+    "pytest-cov>=7.1.0",
+    "httpx>=0.28.1",
+    "ruff>=0.17.6",
+    "mypy>=2.4.1",
+    "import-linter>=2.17",
+    "bandit>=1.9.4",
+    "pip-audit>=2.10.1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aegissoc"]
+
+# --- ruff ---------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "S", "C4", "PT", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+# --- mypy ---------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests"]
+mypy_path = ["src"]
+plugins = ["pydantic.mypy"]
+
+# --- pytest -------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-ra --strict-markers --strict-config"
+markers = [
+    "req(id): requirement (AC-*, SR-*, TC-*) verified by the test",
+]
+
+# --- coverage (QA_STRATEGY §6: backend overall line >= 80 %) --------------
+[tool.coverage.run]
+source = ["aegissoc"]
+branch = true
+omit = ["*/migrations/versions/*"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_empty = true
