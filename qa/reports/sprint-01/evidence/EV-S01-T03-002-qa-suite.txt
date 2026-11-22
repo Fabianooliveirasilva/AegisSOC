@@ -1,0 +1,68 @@
+# S1-T03 QA independent suite (qa/api/core_s1t03) against clean export of 61bbdd6; start 2026-11-22T03:06:54Z
+$ PYTHONDONTWRITEBYTECODE=1 uv run pytest -p no:cacheprovider -q -rf --tb=short --cov=aegissoc.core --cov-branch --cov-report=term-missing --cov-fail-under=0 --junitxml=<junit> qa/api/core_s1t03  (--tb=short so failure output does not print cursor tokens, which trip the secret scanner)
+.......................F................................................ [ 20%]
+........................................................................ [ 40%]
+..........................................FF............................ [ 61%]
+........................................................................ [ 81%]
+.....................................F..........................         [100%]
+=================================== FAILURES ===================================
+_ test_BUG_QA_S1T03_001_validation_error_does_not_leak_secret_content_or_db_url_password _
+/home/fabiano/Área de Trabalho/FreeLancer/AegisSOC/qa/api/core_s1t03/test_qa_config.py:145: in test_BUG_QA_S1T03_001_validation_error_does_not_leak_secret_content_or_db_url_password
+    assert "URLPW-LEAK" not in str(ei.value), str(ei.value)  # QA-S1T03-001
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: 1 validation error for Settings
+E       Value error, AEGIS_DATABASE_PASSWORD_FILE must be set unless AEGIS_ENV=ci [type=value_error, input_value={'database_url': 'postgres://u:URLPW-LEAK@h/d'}, input_type=dict]
+E         For further information visit https://errors.pydantic.dev/2.14/v/value_error
+E   assert 'URLPW-LEAK' not in '1 validatio.../value_error'
+E     
+E     'URLPW-LEAK' is contained here:
+E       tgres://u:URLPW-LEAK@h/d'}, input_type=dict]
+E     ?           ++++++++++
+E           For further information visit https://errors.pydantic.dev/2.14/v/value_error
+___ test_BUG_QA_S1T03_002_str_key_with_unbindable_characters_is_400[\\ud800] ___
+/home/fabiano/Área de Trabalho/FreeLancer/AegisSOC/qa/api/core_s1t03/test_qa_cursor.py:261: in test_BUG_QA_S1T03_002_str_key_with_unbindable_characters_is_400
+    rejected(tok(raw=f'{{"v":1,"k":"{esc}","id":"{UID}"}}'))
+/home/fabiano/Área de Trabalho/FreeLancer/AegisSOC/qa/api/core_s1t03/test_qa_cursor.py:34: in rejected
+    with pytest.raises(BadRequest) as ei:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE BadRequest
+___ test_BUG_QA_S1T03_002_str_key_with_unbindable_characters_is_400[\\u0000] ___
+/home/fabiano/Área de Trabalho/FreeLancer/AegisSOC/qa/api/core_s1t03/test_qa_cursor.py:261: in test_BUG_QA_S1T03_002_str_key_with_unbindable_characters_is_400
+    rejected(tok(raw=f'{{"v":1,"k":"{esc}","id":"{UID}"}}'))
+/home/fabiano/Área de Trabalho/FreeLancer/AegisSOC/qa/api/core_s1t03/test_qa_cursor.py:34: in rejected
+    with pytest.raises(BadRequest) as ei:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE BadRequest
+____________ test_BUG_QA_S1T03_003_list_of_header_pairs_is_redacted ____________
+/home/fabiano/Área de Trabalho/FreeLancer/AegisSOC/qa/api/core_s1t03/test_qa_logging_and_ids_clock.py:82: in test_BUG_QA_S1T03_003_list_of_header_pairs_is_redacted
+    assert "LEAK" not in json.dumps(out)  # QA-S1T03-003 (S3): fails today
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   assert 'LEAK' not in '{"event": "... "s=LEAK"]]}'
+E     
+E     'LEAK' is contained here:
+E       , "Bearer LEAK"], ["cookie", "s=LEAK"]]}
+E     ?           ++++
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.16-final-0 _______________
+
+Name                              Stmts   Miss Branch BrPart  Cover   Missing
+-----------------------------------------------------------------------------
+src/aegissoc/core/clock.py           16      0      2      0   100%
+src/aegissoc/core/config.py          47      0      6      0   100%
+src/aegissoc/core/errors.py         101      3     10      3    95%   156, 171, 183
+src/aegissoc/core/ids.py              4      0      0      0   100%
+src/aegissoc/core/logging.py         31      0     10      0   100%
+src/aegissoc/core/pagination.py      88      0     38      0   100%
+src/aegissoc/core/request_id.py      34      0      8      0   100%
+-----------------------------------------------------------------------------
+TOTAL                               321      3     74      3    98%
+
+5 empty files skipped.
+=========================== short test summary info ============================
+FAILED test_qa_config.py::test_BUG_QA_S1T03_001_validation_error_does_not_leak_secret_content_or_db_url_password
+FAILED test_qa_cursor.py::test_BUG_QA_S1T03_002_str_key_with_unbindable_characters_is_400[\\ud800]
+FAILED test_qa_cursor.py::test_BUG_QA_S1T03_002_str_key_with_unbindable_characters_is_400[\\u0000]
+FAILED test_qa_logging_and_ids_clock.py::test_BUG_QA_S1T03_003_list_of_header_pairs_is_redacted
+4 failed, 348 passed in 4.20s
+[exit 1]
+end 2026-11-22T03:06:59Z

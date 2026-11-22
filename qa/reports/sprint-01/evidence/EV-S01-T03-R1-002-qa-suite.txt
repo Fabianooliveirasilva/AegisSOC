@@ -1,0 +1,26 @@
+# EV-S01-T03-R1-002 commit e9d1473 start 2026-11-22T18:38:58Z (QA sources as hashed in MANIFEST; formatted by another party after a first identical run: 356 passed)
+$ uv run pytest --tb=short -c pyproject.toml --cov=aegissoc.core --cov-fail-under=0 --junitxml=qa-junit.xml ../../qa/api/core_s1t03 -q
+........................................................................ [ 20%]
+........................................................................ [ 40%]
+........................................................................ [ 60%]
+........................................................................ [ 80%]
+....................................................................     [100%]
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.16-final-0 _______________
+
+Name                              Stmts   Miss Branch BrPart  Cover   Missing
+-----------------------------------------------------------------------------
+src/aegissoc/core/clock.py           16      0      2      0   100%
+src/aegissoc/core/config.py          78      5     16      1    94%   42-43, 47, 90-91
+src/aegissoc/core/errors.py         105      5     12      4    92%   159, 162-163, 178, 190
+src/aegissoc/core/ids.py              4      0      0      0   100%
+src/aegissoc/core/logging.py         86      7     32      5    88%   76-77, 89-90, 110-111, 113, 116->119
+src/aegissoc/core/pagination.py     104      0     46      0   100%
+src/aegissoc/core/request_id.py      33      0      8      0   100%
+-----------------------------------------------------------------------------
+TOTAL                               426     17    116     10    95%
+
+5 empty files skipped.
+356 passed in 3.67s
+exit 0
+end 2026-11-22T18:39:02Z

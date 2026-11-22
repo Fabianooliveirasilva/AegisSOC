@@ -1,0 +1,45 @@
+# EV-S01-T03-R1-001 commit e9d1473 start 2026-11-22T18:35:16Z cwd <export>/apps/api
+$ uv run ruff check .
+Using CPython 3.12.16
+Creating virtual environment at: .venv
+   Building aegissoc @ file:///tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/369057c7-4848-48ee-832b-8278ace9da1f/scratchpad/exp/apps/api
+      Built aegissoc @ file:///tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/369057c7-4848-48ee-832b-8278ace9da1f/scratchpad/exp/apps/api
+Installed 80 packages in 57ms
+All checks passed!
+exit 0
+$ uv run ruff format --check .
+45 files already formatted
+exit 0
+$ uv run mypy
+Success: no issues found in 44 source files
+exit 0
+$ uv run lint-imports
+
+aegissoc.core imports no other aegissoc package KEPT
+platform.auth layers (api > service > repository > models > schemas) KEPT
+platform.audit layers (api > service > models > schemas) KEPT
+Only platform.auth touches platform.auth models and repository KEPT
+Only platform.audit touches platform.audit models KEPT
+
+Contracts: 5 kept, 0 broken.
+exit 0
+$ uv run pytest tests/unit --cov --cov-report=xml --junitxml=junit.xml -q
+........................................................................ [ 24%]
+........................................................................ [ 48%]
+........................................................................ [ 73%]
+........................................................................ [ 97%]
+.......                                                                  [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/369057c7-4848-48ee-832b-8278ace9da1f/scratchpad/exp/apps/api/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.16-final-0 _______________
+
+Coverage XML written to file cov.xml
+Required test coverage of 80.0% reached. Total coverage: 98.92%
+295 passed, 1 warning in 2.44s
+exit 0
+end 2026-11-22T18:35:24Z
