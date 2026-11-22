@@ -12,7 +12,10 @@ repos:
     rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # frozen: v6.0.0
     hooks:
       - id: check-yaml
+      # Evidence artefacts are originals referenced by SHA-256 (protocol §7): fixers must
+      # never rewrite them. Scanners (gitleaks) still cover this directory.
       - id: end-of-file-fixer
+        exclude: ^qa/reports/[^/]+/evidence/
 
   # OPEN ITEM (SEC-03): mirrors-prettier is archived upstream and pins Prettier 3.1.0.
   # Replace with a maintained hook or the pnpm-locked Prettier once S1-T11 lands.
@@ -20,6 +23,7 @@ repos:
     rev: ffb6a759a979008c0e6dff86e39f4745a2d9eac4 # frozen: v3.1.0
     hooks:
       - id: prettier
+        exclude: ^qa/reports/[^/]+/evidence/
         # Markdown is excluded: the approved planning docs are not reformatted
         # wholesale. Enabling it is a maintainer decision (separate formatting PR).
         types_or: [yaml, json, ts, tsx, javascript, css]
