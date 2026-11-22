@@ -7,6 +7,9 @@ export PATH := $(HOME)/.local/bin:$(PATH)
 # `override` keeps command-line assignments (make X=...) from replacing these (SEC-04).
 override COMPOSE_FILE := infrastructure/compose/compose.yaml
 override COMPOSE      := docker compose -p aegissoc -f $(COMPOSE_FILE)
+override TEST_COMPOSE_FILE := infrastructure/compose/compose.test.yaml
+override TEST_SECRETS_DIR := $(or $(XDG_RUNTIME_DIR),/tmp)/aegissoc-test-secrets-$(shell id -u)
+override TEST_COMPOSE := AEGIS_TEST_SECRETS_DIR=$(TEST_SECRETS_DIR) docker compose -p aegissoc-test -f $(COMPOSE_FILE) -f $(TEST_COMPOSE_FILE)
 override API_DIR      := apps/api
 override WEB_DIR      := apps/web
 override GITLEAKS_IMG := ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
@@ -18,7 +21,7 @@ override CLEAN_PATHS := $(API_DIR)/.ruff_cache $(API_DIR)/.mypy_cache $(API_DIR)
 
 .DEFAULT_GOAL := help
 
-.PHONY: help setup setup-ci bootstrap-admin up down logs psql trust-ca seed \
+.PHONY: help setup setup-ci bootstrap-admin up down test-db-up test-db-down logs psql trust-ca seed \
         test-unit test-integration test-api test-e2e test-detections \
         lint typecheck scan openapi docs-check traceability demo-data \
         backup restore reset upgrade clean \
@@ -55,6 +58,29 @@ up: _need-compose ## Start the core stack and wait for healthchecks
 
 down: _need-compose ## Stop the stack (keeps volumes)
 	$(COMPOSE) down
+
+# ---- disposable test database (protocol section 6) ------------------------
+# Project aegissoc-test, data on tmpfs, throwaway passwords in a private temp
+# dir (mode 700, outside the repo). Never touches the persistent project.
+
+test-db-up: _need-compose ## Start disposable Postgres/Redis (tmpfs, throwaway passwords), wait healthy
+	@$(MAKE) --no-print-directory test-db-down >/dev/null
+	@umask 077 && mkdir -m 700 -- "$(TEST_SECRETS_DIR)" && \
+	for n in postgres_superuser_password postgres_owner_password postgres_app_password redis_password; do \
+	  head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n' > "$(TEST_SECRETS_DIR)/$$n" && \
+	  chmod 644 -- "$(TEST_SECRETS_DIR)/$$n"; \
+	done
+	@echo "test-db: throwaway secrets in $(TEST_SECRETS_DIR) (dir mode 700; files are readable by the container UID, never printed)"
+	$(TEST_COMPOSE) up -d --wait --wait-timeout 120
+
+test-db-down: _need-compose ## Stop disposable test DB and delete its throwaway secrets (tmpfs-backed volumes of project aegissoc-test only)
+	@$(TEST_COMPOSE) down --volumes --remove-orphans
+	@if [ -d "$(TEST_SECRETS_DIR)" ] && [ ! -L "$(TEST_SECRETS_DIR)" ]; then \
+	  for n in postgres_superuser_password postgres_owner_password postgres_app_password redis_password; do \
+	    if [ -e "$(TEST_SECRETS_DIR)/$$n" ]; then rm -- "$(TEST_SECRETS_DIR)/$$n"; fi; \
+	  done; \
+	  rmdir -- "$(TEST_SECRETS_DIR)" && echo "test-db: removed $(TEST_SECRETS_DIR)"; \
+	fi
 
 logs: _need-compose ## Follow logs (SERVICE=name to filter)
 	@case "$$SERVICE" in -*|*[!a-zA-Z0-9_.-]*) echo 'logs: invalid SERVICE name' >&2; exit 2;; esac; \
