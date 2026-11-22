@@ -1,0 +1,62 @@
+# Evidence transcript EV-S01-T01-007-targets-and-prereqs
+# commit: 7e69ead (fix); clean git archive export
+# utc_start: 2026-11-22T02:02:11Z
+# host: Linux 6.8.0-149-generic; docker Docker version 29.1.3
+# cwd: /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad
+# command: bash /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/t01_targets.sh /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/ex
+# ---- output ----
+trust-ca: trust-ca: available from Sprint 1 stretch (after S1-T12)
+   exit=0
+seed: seed: available from Sprint 2
+   exit=0
+demo-data: demo-data: available from Sprint 2
+   exit=0
+test-api: test-api: available from Sprint 1 (after S1-T06)
+   exit=0
+test-e2e: test-e2e: available from Sprint 1 (after S1-T11)
+   exit=0
+test-detections: test-detections: available from Sprint 3
+   exit=0
+openapi: openapi: available after S1-T10
+   exit=0
+docs-check: docs-check: available from Sprint 1 (S1-T16)
+   exit=0
+traceability: traceability: available from Sprint 2
+   exit=0
+backup: backup: available from Sprint 6
+   exit=0
+restore: restore: available from Sprint 6
+   exit=0
+upgrade: upgrade: available from Sprint 6
+   exit=0
+reset: reset: not implemented yet (destructive; arrives with S1-T12 with a confirmation prompt)
+   exit=0
+up: infrastructure/compose/compose.yaml not present yet (arrives with S1-T12/T12a)
+   exit=141
+down: infrastructure/compose/compose.yaml not present yet (arrives with S1-T12/T12a)
+   exit=141
+logs: infrastructure/compose/compose.yaml not present yet (arrives with S1-T12/T12a)
+   exit=141
+psql: infrastructure/compose/compose.yaml not present yet (arrives with S1-T12/T12a)
+   exit=141
+bootstrap-admin: infrastructure/compose/compose.yaml not present yet (arrives with S1-T12/T12a)
+   exit=141
+27
+removed apps/api/.ruff_cache
+removed .ruff_cache
+clean exit=0
+== check-prereqs
+ok       docker           29.1.3 (>= 25)
+ok       docker compose   2.40.3 (>= 2.24)
+ok       make             4.3 (>= 4)
+ok       git              2.56.1 (>= 2.40)
+ok       uv               0.13.7 (>= 0.5)
+ok       node             26.13.1 (>= 22)
+ok       pnpm             9.15.9 (>= 9)
+ok       pre-commit       4.7.0 (>= 3)
+optional gitleaks         not installed; the pre-commit hook uses Docker
+check-prereqs: all required prerequisites present
+exit=0
+# ---- end ----
+# exit_status: 0
+# utc_end: 2026-11-22T02:02:12Z

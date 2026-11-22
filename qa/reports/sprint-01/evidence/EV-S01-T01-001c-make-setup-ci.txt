@@ -1,0 +1,22 @@
+# Evidence transcript EV-S01-T01-001c-make-setup-ci
+# commit: 7e69ead (fix); clean git archive export
+# utc_start: 2026-11-22T02:01:13Z
+# host: Linux 6.8.0-149-generic; docker Docker version 29.1.3
+# cwd: /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/ex
+# command: make setup-ci
+# ---- output ----
+ok       docker           29.1.3 (>= 25)
+ok       docker compose   2.40.3 (>= 2.24)
+ok       make             4.3 (>= 4)
+ok       git              2.56.1 (>= 2.40)
+ok       uv               0.13.7 (>= 0.5)
+ok       node             26.13.1 (>= 22)
+ok       pnpm             9.15.9 (>= 9)
+ok       pre-commit       4.7.0 (>= 3)
+optional gitleaks         not installed; the pre-commit hook uses Docker
+check-prereqs: all required prerequisites present
+pre-commit installed at .git/hooks/pre-commit
+setup-secrets: 1 created, 4 already present (dir: /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/sec1/s)
+# ---- end ----
+# exit_status: 0
+# utc_end: 2026-11-22T02:01:14Z

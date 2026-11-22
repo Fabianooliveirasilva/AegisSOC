@@ -1,0 +1,63 @@
+# Evidence transcript EV-S01-T01-005-precommit-hook-and-revs
+# commit: 7e69ead (fix); clean git archive export
+# utc_start: 2026-11-22T02:01:50Z
+# host: Linux 6.8.0-149-generic; docker Docker version 29.1.3
+# cwd: /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad
+# command: bash /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/t01_hook.sh /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/ex /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad
+# ---- output ----
+== frozen revs
+    rev: 9026c9127e153371d7a78dfcb0c45ae2046a3d10 # frozen: v0.17.6
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # frozen: v6.0.0
+    rev: ffb6a759a979008c0e6dff86e39f4745a2d9eac4 # frozen: v3.1.0
+    rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e # frozen: v8.30.1
+non-40-hex revs: 0
+== gitleaks entry
+1
+1
+== git commit with staged synthetic token
+check yaml...............................................................Passed
+fix end of files.........................................................Passed
+prettier.................................................................Passed
+Detect hardcoded secrets.................................................Failed
+- hook id: gitleaks-docker
+- exit code: 1
+○
+    │╲
+    │ ○
+    ○ ░
+    ░    gitleaks
+Finding:     tok = "[1;3;mREDACTED[0m
+Secret:      [1;3;mREDACTED[0m
+RuleID:      github-pat
+Entropy:     4.834184
+File:        leak.py
+Line:        1
+Fingerprint: leak.py:github-pat:1
+[90m2:01AM[0m [32mINF[0m [1m0 commits scanned.[0m
+[90m2:01AM[0m [32mINF[0m [1mscanned ~1690 bytes (1.69 KB) in 50ms[0m
+[90m2:01AM[0m [33mWRN[0m [1mleaks found: 1[0m
+commit exit=1
+commits: 0
+== clean commit
+ruff check...............................................................Passed
+ruff format..............................................................Passed
+check yaml...............................................................Passed
+fix end of files.........................................................Passed
+prettier.................................................................Passed
+Detect hardcoded secrets.................................................Passed
+[master (commit raiz) 5a901f5] ok
+ 2 files changed, 34 insertions(+)
+ create mode 100644 .pre-commit-config.yaml
+ create mode 100644 ok.py
+exit=0
+== pre-commit run --all-files (export)
+ruff check...............................................................Passed
+ruff format..............................................................Passed
+check yaml...............................................................Passed
+fix end of files.........................................................Passed
+prettier.................................................................Passed
+Detect hardcoded secrets.................................................Passed
+exit=0
+# ---- end ----
+# exit_status: 0
+# utc_end: 2026-11-22T02:01:53Z

@@ -1,0 +1,174 @@
+# Evidence transcript EV-S01-T02-r2-done-when
+# commit: 7e69ead (fix); clean git archive export
+# utc_start: 2026-11-22T02:02:23Z
+# host: Linux 6.8.0-149-generic; docker Docker version 29.1.3
+# cwd: /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad
+# command: bash /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/t02.sh /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/ex /home/fabiano/Área de Trabalho/FreeLancer/AegisSOC/qa/reports/sprint-01/evidence
+# ---- output ----
++ uv sync --frozen
+Using CPython 3.12.16
+Creating virtual environment at: .venv
+   Building aegissoc @ file:///tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/ex/apps/api
+      Built aegissoc @ file:///tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/ex/apps/api
+Prepared 1 package in 508ms
+Installed 80 packages in 61ms
+ + aegissoc==0.0.0 (from file:///tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/ex/apps/api)
+ + alembic==1.20.1
+ + annotated-doc==0.0.7
+ + annotated-types==0.8.0
+ + anyio==4.16.0
+ + argon2-cffi==25.1.0
+ + argon2-cffi-bindings==26.2.0
+ + ast-serialize==0.13.1
+ + asyncpg==0.32.0
+ + bandit==1.9.4
+ + boolean-py==5.0
+ + cachecontrol==0.15.0
+ + certifi==2026.11.20
+ + cffi==2.1.1
+ + charset-normalizer==3.5.2
+ + click==8.5.1
+ + coverage==7.17.4
+ + cyclonedx-python-lib==11.12.0
+ + defusedxml==0.7.1
+ + fastapi==0.165.0
+ + filelock==4.2.12
+ + greenlet==3.5.6
+ + grimp==3.20
+ + h11==0.16.0
+ + httpcore==1.0.9
+ + httptools==0.9.0
+ + httpx==0.28.1
+ + idna==3.20
+ + import-linter==2.17
+ + iniconfig==2.3.1
+ + librt==0.17.0
+ + license-expression==30.4.4
+ + mako==1.4.3
+ + markdown-it-py==4.3.0
+ + markupsafe==3.0.4
+ + mdurl==0.1.2
+ + msgpack==1.2.4
+ + mypy==2.4.1
+ + mypy-extensions==1.2.0
+ + opentelemetry-api==1.45.2
+ + packageurl-python==0.17.6
+ + packaging==26.3
+ + pathspec==1.1.1
+ + pip==26.3
+ + pip-api==0.0.35
+ + pip-audit==2.10.1
+ + pip-requirements-parser==32.0.1
+ + platformdirs==4.14.8
+ + pluggy==1.7.0
+ + py-serializable==2.2.0
+ + pycparser==3.12
+ + pydantic==2.14.4
+ + pydantic-core==2.50.5
+ + pydantic-settings==2.16.3
+ + pygments==2.21.0
+ + pyparsing==3.3.3
+ + pytest==9.2.0
+ + pytest-asyncio==1.5.0
+ + pytest-cov==7.1.0
+ + python-dotenv==1.2.4
+ + pyyaml==6.0.4
+ + redis==8.1.0
+ + requests==2.34.2
+ + rich==15.0.0
+ + ruff==0.17.6
+ + sortedcontainers==2.4.0
+ + sqlalchemy==2.1.9
+ + starlette==1.10.0
+ + stevedore==5.10.0
+ + structlog==26.1.0
+ + tomli==2.5.0
+ + tomli-w==1.2.0
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.5
+ + urllib3==2.8.0
+ + uuid6==2025.0.1
+ + uvicorn==0.54.0
+ + uvloop==0.23.0
+ + watchfiles==1.3.0
+ + websockets==17.4
++ echo sync=0
+sync=0
++ uv lock --check
+Resolved 81 packages in 1ms
++ echo lockcheck=0
+lockcheck=0
++ uv run ruff check .
+All checks passed!
++ echo ruff=0
+ruff=0
++ uv run ruff format --check .
+37 files already formatted
++ echo format=0
+format=0
++ uv run mypy
+Success: no issues found in 36 source files
++ echo mypy=0
+mypy=0
++ uv run lint-imports
+
+╔══╗─────────▶╔╗ ╔╗      ╔╗◀───┐
+╚╣╠╝◀─────┐  ╔╝╚╗║║────▶╔╝╚╗   │
+ ║║   ╔══╦══╦╩╗╔╝║║  ╔╦═╩╗╔╝╔═╦══╗
+ ║║╔══╣╔╗║╔╗║╔╣║ ║║ ╔╬╣╔╗║║ ║│║╔═╝
+╔╣╠╣║║║╚╝║╚╝║║║╚╗║╚═╝║║║║║╚╗║═╣║
+╚══╩╩╩╣╔═╩══╩╝╚═╝╚═══╩╩╝╚╩═╩╩═╩╝
+  └──▶║║                    ▲ 
+      ╚╝────────────────────┘
+
+
+---------
+Contracts
+---------
+
+Analyzed 35 files, 2 dependencies.
+----------------------------------
+
+aegissoc.core imports no other aegissoc package KEPT
+platform.auth layers (api > service > repository > models > schemas) KEPT
+platform.audit layers (api > service > models > schemas) KEPT
+Only platform.auth touches platform.auth models and repository KEPT
+Only platform.audit touches platform.audit models KEPT
+
+Contracts: 5 kept, 0 broken.
++ echo lint-imports=0
+lint-imports=0
++ uv run pytest --cov --cov-report=xml:/home/fabiano/Área/EV-S01-T02-r2-coverage.xml --junitxml=/home/fabiano/Área/EV-S01-T02-r2-pytest-junit.xml
+============================= test session starts ==============================
+platform linux -- Python 3.12.16, pytest-9.2.0, pluggy-1.7.0
+rootdir: /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/ex/apps/api
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.1.0, asyncio-1.5.0, platformdirs-4.14.8, anyio-4.16.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collected 4 items
+
+tests/unit/test_skeleton.py ....                                         [100%]
+
+---- generated xml file: /home/fabiano/Área/EV-S01-T02-r2-pytest-junit.xml -----
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.16-final-0 _______________
+
+Coverage XML written to file /home/fabiano/Área/EV-S01-T02-r2-coverage.xml
+Required test coverage of 80.0% reached. Total coverage: 100.00%
+============================== 4 passed in 0.95s ===============================
++ echo pytest=0
+pytest=0
++ cd ../..
++ make test-unit
++ echo 'make test-unit=0'
+make test-unit=0
++ make typecheck
++ echo 'make typecheck=0'
+make typecheck=0
++ make lint
++ echo 'make lint=0'
+make lint=0
+# ---- end ----
+# exit_status: 0
+# utc_end: 2026-11-22T02:02:33Z

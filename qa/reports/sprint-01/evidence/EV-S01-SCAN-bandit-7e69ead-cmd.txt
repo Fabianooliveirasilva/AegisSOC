@@ -1,0 +1,15 @@
+# Evidence transcript EV-S01-SCAN-bandit-7e69ead-cmd
+# commit: 7e69ead (fix) exported with git archive
+# utc_start: 2026-11-22T02:03:00Z
+# host: Linux 6.8.0-149-generic; docker Docker version 29.1.3
+# cwd: /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/ex/apps/api
+# command: uv run bandit -r src -f json -o /home/fabiano/Área de Trabalho/FreeLancer/AegisSOC/qa/reports/sprint-01/evidence/EV-S01-SCAN-bandit-7e69ead.json
+# ---- output ----
+[main]	INFO	profile include tests: None
+[main]	INFO	profile exclude tests: None
+[main]	INFO	cli include tests: None
+[main]	INFO	cli exclude tests: None
+[json]	INFO	JSON output written to file: /home/fabiano/Área de Trabalho/FreeLancer/AegisSOC/qa/reports/sprint-01/evidence/EV-S01-SCAN-bandit-7e69ead.json
+# ---- end ----
+# exit_status: 0
+# utc_end: 2026-11-22T02:03:00Z
