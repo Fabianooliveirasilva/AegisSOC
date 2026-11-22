@@ -1,0 +1,43 @@
+Evidence EV-S01-T12a-006 .. 009 (re-validation 1), commit e153e3a9ff97b4e7ac56daf3960ec80c6e56164c
+Environment: Linux 6.8, Docker Compose, clean `git archive e153e3a` export (scratchpad ex1), UTC 2026-11-22T19:51Z..20:36Z.
+Hand-assembled from session output; passwords never printed except synthetic marker values in throwaway projects.
+
+[006] make test-db-up (x2), make test-db-env, make test-db-down (x2)
+  up 1: rc=0, postgres+redis Healthy. up 2: rc=0, Healthy (previous stack replaced).
+  test-db-env printed: PG host 172.18.0.3:5432 db aegissoc, owner user + PASSWORD_FILE path, app user + PASSWORD_FILE path,
+    redis host 172.18.0.2:6379 + PASSWORD_FILE path, example DSN without password. No password value printed. rc=0.
+  down 1: rc=0 "removed /run/user/1000/aegissoc-test-secrets", volumes+network removed. down 2: rc=0, no output.
+  After: no aegissoc-test containers/volumes/networks/secrets dir. Persistent project 'aegissoc': 0 containers before and after.
+  Security reviewer's aegis-sec-rv-* containers untouched.
+
+[007] Host-side access and role checks (postgres:16-alpine psql, --network host, to the bridge IP, PGPASSWORD from the files)
+  aegis_owner: current_user aegis_owner, CREATE TABLE/INDEX/DROP TABLE in public OK (create/drop/re-create cycle OK).
+  aegis_app on owner-created table without grant: SELECT/INSERT/UPDATE/DELETE "permission denied for table" (no default privileges, by design: T04 grants per table).
+  After owner GRANT SELECT,INSERT,UPDATE,DELETE: aegis_app INSERT 0 1, SELECT, UPDATE 1, DELETE 1 OK.
+  aegis_app: CREATE TABLE "permission denied for schema public"; ALTER TABLE "must be owner"; DROP TABLE "must be owner"; TRUNCATE "permission denied for table"; CREATE SCHEMA "permission denied for database aegissoc".
+  Roles: aegis_owner/aegis_app rolsuper=f createdb=f createrole=f.
+  QA-003: aegis_app -> postgres: FATAL permission denied for database "postgres" (no CONNECT); aegis_owner -> postgres: same; aegis_app -> aegissoc: OK; aegis_app -> template1: OK (PUBLIC keeps CONNECT there).
+  Wrong password: "password authentication failed". Redis: no auth -> NOAUTH; with REDISCLI_AUTH from file -> PONG.
+  Password scan of postgres and redis container logs for all four secrets: 0 matches each.
+  Tmpfs: postgres /tmp and /run/postgresql nodev,noexec,nosuid (docker inspect + /proc/mounts); redis /tmp nodev. Startup healthy.
+  Healthcheck: 5 consecutive ExitCode 0 logins; /tmp/hc.pgpass mode 600 in container.
+
+[008] Failure paths on throwaway projects (copies of the export under scratchpad; project names aegissoc-qa-*; removed with down -v)
+  SEC-03 fix: extra init file creates role aegis_app first, so CREATE ROLE aegis_app ... PASSWORD fails. Marker password MARKERPW_fix:zz\yy.
+    e153e3a script: log has "ERROR: role aegis_app already exists" without STATEMENT line; MARKERPW count in `docker logs` = 0.
+    Control (the three lines removed): log has STATEMENT: CREATE ROLE aegis_app ... PASSWORD E'MARKERPW_ctl:zz\\yy'; count = 1. Fix proven effective.
+  SEC-02 (failed init): after the init failure the container restarted on the half-initialised cluster; healthcheck output
+    "FATAL: password authentication failed for user aegis_app", status went starting -> unhealthy (both variants). Previously this would have been healthy.
+  Healthcheck with password containing ':' and '\': pgpass line escaped ("*:*:*:aegis_app:MARKERPW_fix\:zz\\yy"), health=healthy.
+  Redis empty password secret: log "redis: empty password secret", container exits 1 and restarts (restart unless-stopped), never serves.
+
+[009] SEC-04 paths (make test-db-up/down/env in the export)
+  XDG_RUNTIME_DIR unset or empty: all three refuse "XDG_RUNTIME_DIR is not set; refusing to fall back to /tmp", make rc=2, no compose call.
+  make XDG_RUNTIME_DIR=/tmp (command-line) -> still the env value; XDG_RUNTIME_DIR=/tmp, /run (not owned) and a symlinked dir: refused "must be a real directory owned by you".
+  Symlink planted as aegissoc-test-secrets (to a dir I own): up/down/env all refuse; target dir untouched (0 files). Regular file planted: refused.
+  Concurrent run (lock held by another process via flock on .aegissoc-test.lock): up/down/env refuse "another make test-db-* run is in progress (lock held)", running stack untouched. After release works.
+  Stray lock file: .aegissoc-test.lock (mode 664, empty) persists in $XDG_RUNTIME_DIR after down; harmless, flock is on the open fd, not on file existence.
+
+shellcheck (koalaman/shellcheck:stable, -s sh) on expanded recipes test-db-up/down/env, logs, psql, and inline scripts postgres/redis healthchecks, redis entrypoint:
+  logs, psql, 3 compose inline scripts: clean (rc 0). 01-roles.sh: clean (rc 0).
+  test-db-up/down/env (TEST_GUARD): 2 x SC3067 warning "In POSIX sh, test -O is undefined" (SHELL := /bin/sh). Works on dash/busybox here; portability note only.

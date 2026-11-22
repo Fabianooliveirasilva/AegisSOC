@@ -1,0 +1,39 @@
+# Disposable test data services (SPRINT_01_EXECUTION_PROTOCOL section 6).
+# Use only through `make test-db-up` / `make test-db-down`, which generate
+# throwaway passwords into a private temp directory and export its path as
+# AEGIS_TEST_SECRETS_DIR. Project name: aegissoc-test. Data lives on tmpfs-backed
+# volumes removed by `down`; the persistent project `aegissoc` is never touched.
+name: aegissoc-test
+
+services:
+  postgres:
+    restart: "no"
+
+  redis:
+    restart: "no"
+
+# Same volume names as the persistent stack, but backed by tmpfs (RAM): nothing
+# is written to disk and `make test-db-down` removes them with the project.
+volumes:
+  pg_data:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: size=256m,uid=70,gid=70,mode=0700,nosuid
+  redis_data:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: size=64m,uid=999,gid=999,mode=0700,nosuid
+
+secrets:
+  postgres_superuser_password:
+    file: ${AEGIS_TEST_SECRETS_DIR:?run via make test-db-up}/postgres_superuser_password
+  postgres_owner_password:
+    file: ${AEGIS_TEST_SECRETS_DIR:?run via make test-db-up}/postgres_owner_password
+  postgres_app_password:
+    file: ${AEGIS_TEST_SECRETS_DIR:?run via make test-db-up}/postgres_app_password
+  redis_password:
+    file: ${AEGIS_TEST_SECRETS_DIR:?run via make test-db-up}/redis_password

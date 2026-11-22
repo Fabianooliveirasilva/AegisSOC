@@ -1,0 +1,241 @@
+# EV-S01-T12a-005 compose config, test overlay (AEGIS_TEST_SECRETS_DIR=/x), exit 0
+name: aegissoc-test
+services:
+  postgres:
+    cap_drop:
+      - ALL
+    environment:
+      POSTGRES_INITDB_ARGS: --auth-local=scram-sha-256 --auth-host=scram-sha-256
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_superuser_password
+      POSTGRES_USER: postgres
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -h 127.0.0.1 -p 5432 -U aegis_app -d aegissoc
+      timeout: 3s
+      interval: 5s
+      retries: 20
+      start_period: 10s
+    image: postgres:16-alpine@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d
+    mem_limit: "536870912"
+    networks:
+      app_net: null
+    pids_limit: 200
+    read_only: true
+    restart: "no"
+    secrets:
+      - source: postgres_superuser_password
+        target: /run/secrets/postgres_superuser_password
+      - source: postgres_owner_password
+        target: /run/secrets/postgres_owner_password
+      - source: postgres_app_password
+        target: /run/secrets/postgres_app_password
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=16m,mode=1777,noexec,nosuid
+      - /var/run/postgresql:size=1m,uid=70,gid=70,mode=0755,noexec,nosuid
+    user: 70:70
+    volumes:
+      - type: volume
+        source: pg_data
+        target: /var/lib/postgresql/data
+        volume: {}
+      - type: bind
+        source: /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/369057c7-4848-48ee-832b-8278ace9da1f/scratchpad/ex/infrastructure/compose/postgres/init
+        target: /docker-entrypoint-initdb.d
+        read_only: true
+        bind:
+          create_host_path: true
+  redis:
+    cap_drop:
+      - ALL
+    entrypoint:
+      - sh
+      - -c
+      - |
+        umask 077
+        printf 'requirepass %s\n' "$$(cat /run/secrets/redis_password)" > /tmp/auth.conf
+        exec redis-server /tmp/auth.conf --dir /data --appendonly yes \
+          --maxmemory 256mb --maxmemory-policy noeviction --save "" \
+          --protected-mode yes
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - REDISCLI_AUTH="$$(cat /run/secrets/redis_password)" redis-cli ping | grep -q PONG
+      timeout: 3s
+      interval: 5s
+      retries: 10
+      start_period: 3s
+    image: redis:7.4-alpine@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
+    mem_limit: "402653184"
+    networks:
+      app_net: null
+    pids_limit: 100
+    read_only: true
+    restart: "no"
+    secrets:
+      - source: redis_password
+        target: /run/secrets/redis_password
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=1m,uid=999,gid=999,mode=0700,noexec,nosuid
+    user: 999:999
+    volumes:
+      - type: volume
+        source: redis_data
+        target: /data
+        volume: {}
+networks:
+  app_net:
+    name: aegissoc-test_app_net
+    internal: true
+volumes:
+  pg_data:
+    name: aegissoc-test_pg_data
+    driver: local
+    driver_opts:
+      device: tmpfs
+      o: size=256m,uid=70,gid=70,mode=0700,nosuid
+      type: tmpfs
+  redis_data:
+    name: aegissoc-test_redis_data
+    driver: local
+    driver_opts:
+      device: tmpfs
+      o: size=64m,uid=999,gid=999,mode=0700,nosuid
+      type: tmpfs
+secrets:
+  postgres_app_password:
+    name: aegissoc-test_postgres_app_password
+    file: /x/postgres_app_password
+  postgres_owner_password:
+    name: aegissoc-test_postgres_owner_password
+    file: /x/postgres_owner_password
+  postgres_superuser_password:
+    name: aegissoc-test_postgres_superuser_password
+    file: /x/postgres_superuser_password
+  redis_password:
+    name: aegissoc-test_redis_password
+    file: /x/redis_password
+
+# compose config, persistent stack, exit 0
+name: aegissoc
+services:
+  postgres:
+    cap_drop:
+      - ALL
+    environment:
+      POSTGRES_INITDB_ARGS: --auth-local=scram-sha-256 --auth-host=scram-sha-256
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_superuser_password
+      POSTGRES_USER: postgres
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -h 127.0.0.1 -p 5432 -U aegis_app -d aegissoc
+      timeout: 3s
+      interval: 5s
+      retries: 20
+      start_period: 10s
+    image: postgres:16-alpine@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d
+    mem_limit: "536870912"
+    networks:
+      app_net: null
+    pids_limit: 200
+    read_only: true
+    restart: unless-stopped
+    secrets:
+      - source: postgres_superuser_password
+        target: /run/secrets/postgres_superuser_password
+      - source: postgres_owner_password
+        target: /run/secrets/postgres_owner_password
+      - source: postgres_app_password
+        target: /run/secrets/postgres_app_password
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=16m,mode=1777,noexec,nosuid
+      - /var/run/postgresql:size=1m,uid=70,gid=70,mode=0755,noexec,nosuid
+    user: 70:70
+    volumes:
+      - type: volume
+        source: pg_data
+        target: /var/lib/postgresql/data
+        volume: {}
+      - type: bind
+        source: /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/369057c7-4848-48ee-832b-8278ace9da1f/scratchpad/ex/infrastructure/compose/postgres/init
+        target: /docker-entrypoint-initdb.d
+        read_only: true
+        bind:
+          create_host_path: true
+  redis:
+    cap_drop:
+      - ALL
+    entrypoint:
+      - sh
+      - -c
+      - |
+        umask 077
+        printf 'requirepass %s\n' "$$(cat /run/secrets/redis_password)" > /tmp/auth.conf
+        exec redis-server /tmp/auth.conf --dir /data --appendonly yes \
+          --maxmemory 256mb --maxmemory-policy noeviction --save "" \
+          --protected-mode yes
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - REDISCLI_AUTH="$$(cat /run/secrets/redis_password)" redis-cli ping | grep -q PONG
+      timeout: 3s
+      interval: 5s
+      retries: 10
+      start_period: 3s
+    image: redis:7.4-alpine@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
+    mem_limit: "402653184"
+    networks:
+      app_net: null
+    pids_limit: 100
+    read_only: true
+    restart: unless-stopped
+    secrets:
+      - source: redis_password
+        target: /run/secrets/redis_password
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=1m,uid=999,gid=999,mode=0700,noexec,nosuid
+    user: 999:999
+    volumes:
+      - type: volume
+        source: redis_data
+        target: /data
+        volume: {}
+networks:
+  app_net:
+    name: aegissoc_app_net
+    internal: true
+volumes:
+  pg_data:
+    name: aegissoc_pg_data
+  redis_data:
+    name: aegissoc_redis_data
+secrets:
+  postgres_app_password:
+    name: aegissoc_postgres_app_password
+    file: /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/369057c7-4848-48ee-832b-8278ace9da1f/scratchpad/ex/infrastructure/compose/secrets/postgres_app_password
+  postgres_owner_password:
+    name: aegissoc_postgres_owner_password
+    file: /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/369057c7-4848-48ee-832b-8278ace9da1f/scratchpad/ex/infrastructure/compose/secrets/postgres_owner_password
+  postgres_superuser_password:
+    name: aegissoc_postgres_superuser_password
+    file: /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/369057c7-4848-48ee-832b-8278ace9da1f/scratchpad/ex/infrastructure/compose/secrets/postgres_superuser_password
+  redis_password:
+    name: aegissoc_redis_password
+    file: /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/369057c7-4848-48ee-832b-8278ace9da1f/scratchpad/ex/infrastructure/compose/secrets/redis_password
+
+# failure paths (observed, transcribed)
+unset AEGIS_TEST_SECRETS_DIR: error while interpolating secrets.postgres_superuser_password.file: required variable AEGIS_TEST_SECRETS_DIR is missing a value: run via make test-db-up
+missing secret files: warning 'secret file ... does not exist'; daemon: invalid mount config for type bind: bind source path does not exist
+empty owner/app secret: postgres exits 1, log '01-roles: missing or empty secret postgres_owner_password'
+docker restart of postgres after init: no 01-roles run, healthy
+shellcheck 01-roles.sh: rc 0
+host -> container IP 172.18.0.2:5432 over internal bridge: TCP connect OK

@@ -1,0 +1,47 @@
+# EV-S01-T12a-002 postgres checks (passwords read inside container, never printed)
+## roles
+aegis_app|f|f|f|f|t
+aegis_owner|f|f|f|f|t
+postgres|t|t|t|t|t
+## db owner
+aegissoc|aegis_owner
+postgres|postgres
+template0|postgres
+template1|postgres
+## schema owner/acl
+public|aegis_owner|{aegis_owner=UC/aegis_owner,=U/aegis_owner}
+## app create in public (expect denied)
+ERROR:  permission denied for schema public
+LINE 1: create table public.t(x int)
+                     ^
+## app privs
+f|t|f|t
+## owner create/drop
+CREATE TABLE
+DROP TABLE
+## app other-db / template1 connect
+1
+## no password TCP
+psql: error: connection to server at "127.0.0.1", port 5432 failed: fe_sendauth: no password supplied
+## no password socket
+psql: error: connection to server on socket "/run/postgresql/.s.PGSQL.5432" failed: fe_sendauth: no password supplied
+## no password socket app
+psql: error: connection to server on socket "/run/postgresql/.s.PGSQL.5432" failed: fe_sendauth: no password supplied
+## wrong pw TCP
+psql: error: connection to server at "127.0.0.1", port 5432 failed: FATAL:  password authentication failed for user "postgres"
+## hba
+local|{all}|{all}||scram-sha-256
+host|{all}|{all}|127.0.0.1|scram-sha-256
+host|{all}|{all}|::1|scram-sha-256
+local|{replication}|{all}||scram-sha-256
+host|{replication}|{all}|127.0.0.1|scram-sha-256
+host|{replication}|{all}|::1|scram-sha-256
+host|{all}|{all}|all|scram-sha-256
+## listen
+*
+scram-sha-256
+## pw hashes scram
+aegis_owner|SCRAM-SHA-256$
+aegis_app|SCRAM-SHA-256$
+## pw in logs?
+1

@@ -1,0 +1,76 @@
+# EV-S01-T12a-001 make test-db-up transcript, commit 3037b42, 2026-11-22T19:21Z (clean git archive export)
+## make test-db-up (run 1) exit 0
+test-db: throwaway secrets in /run/user/1000/aegissoc-test-secrets-1000 (dir mode 700; files are readable by the container UID, never printed)
+AEGIS_TEST_SECRETS_DIR=/run/user/1000/aegissoc-test-secrets-1000 docker compose -p aegissoc-test -f infrastructure/compose/compose.yaml -f infrastructure/compose/compose.test.yaml up -d --wait --wait-timeout 120
+ Network aegissoc-test_app_net  Creating
+ Network aegissoc-test_app_net  Created
+ Volume aegissoc-test_pg_data  Creating
+ Volume aegissoc-test_pg_data  Created
+ Volume aegissoc-test_redis_data  Creating
+ Volume aegissoc-test_redis_data  Created
+ Container aegissoc-test-postgres-1  Creating
+ Container aegissoc-test-redis-1  Creating
+ Container aegissoc-test-redis-1  Created
+ Container aegissoc-test-postgres-1  Created
+ Container aegissoc-test-postgres-1  Starting
+ Container aegissoc-test-redis-1  Starting
+ Container aegissoc-test-redis-1  Started
+ Container aegissoc-test-postgres-1  Started
+ Container aegissoc-test-postgres-1  Waiting
+ Container aegissoc-test-redis-1  Waiting
+ Container aegissoc-test-redis-1  Healthy
+ Container aegissoc-test-postgres-1  Healthy
+
+## make test-db-up (run 2, idempotence) exit 0
+ Container aegissoc-test-redis-1  Stopping
+ Container aegissoc-test-postgres-1  Stopping
+ Container aegissoc-test-redis-1  Stopped
+ Container aegissoc-test-redis-1  Removing
+ Container aegissoc-test-redis-1  Removed
+ Container aegissoc-test-postgres-1  Stopped
+ Container aegissoc-test-postgres-1  Removing
+ Container aegissoc-test-postgres-1  Removed
+ Volume aegissoc-test_redis_data  Removing
+ Volume aegissoc-test_pg_data  Removing
+ Network aegissoc-test_app_net  Removing
+ Volume aegissoc-test_redis_data  Removed
+ Volume aegissoc-test_pg_data  Removed
+ Network aegissoc-test_app_net  Removed
+test-db: throwaway secrets in /run/user/1000/aegissoc-test-secrets-1000 (dir mode 700; files are readable by the container UID, never printed)
+AEGIS_TEST_SECRETS_DIR=/run/user/1000/aegissoc-test-secrets-1000 docker compose -p aegissoc-test -f infrastructure/compose/compose.yaml -f infrastructure/compose/compose.test.yaml up -d --wait --wait-timeout 120
+ Network aegissoc-test_app_net  Creating
+ Network aegissoc-test_app_net  Created
+ Volume aegissoc-test_pg_data  Creating
+ Volume aegissoc-test_pg_data  Created
+ Volume aegissoc-test_redis_data  Creating
+ Volume aegissoc-test_redis_data  Created
+ Container aegissoc-test-redis-1  Creating
+ Container aegissoc-test-postgres-1  Creating
+ Container aegissoc-test-redis-1  Created
+ Container aegissoc-test-postgres-1  Created
+ Container aegissoc-test-redis-1  Starting
+ Container aegissoc-test-postgres-1  Starting
+ Container aegissoc-test-redis-1  Started
+ Container aegissoc-test-postgres-1  Started
+ Container aegissoc-test-redis-1  Waiting
+ Container aegissoc-test-postgres-1  Waiting
+ Container aegissoc-test-redis-1  Healthy
+ Container aegissoc-test-postgres-1  Healthy
+
+## make test-db-down exit 0, then leftovers (project aegissoc-test only; aegis-sec-t12a-* belong to the security reviewer)
+ Container aegissoc-test-postgres-1  Stopping
+ Container aegissoc-test-redis-1  Stopping
+ Container aegissoc-test-postgres-1  Stopped
+ Container aegissoc-test-postgres-1  Removing
+ Container aegissoc-test-postgres-1  Removed
+ Container aegissoc-test-redis-1  Stopped
+ Container aegissoc-test-redis-1  Removing
+ Container aegissoc-test-redis-1  Removed
+ Volume aegissoc-test_pg_data  Removing
+ Volume aegissoc-test_redis_data  Removing
+ Network aegissoc-test_app_net  Removing
+ Volume aegissoc-test_pg_data  Removed
+ Volume aegissoc-test_redis_data  Removed
+ Network aegissoc-test_app_net  Removed
+test-db: removed /run/user/1000/aegissoc-test-secrets-1000
+leftover containers/volumes/networks of aegissoc-test: none; /run/user/1000/aegissoc* : absent; second test-db-down exit 0
