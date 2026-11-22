@@ -8,8 +8,20 @@ export PATH := $(HOME)/.local/bin:$(PATH)
 override COMPOSE_FILE := infrastructure/compose/compose.yaml
 override COMPOSE      := docker compose -p aegissoc -f $(COMPOSE_FILE)
 override TEST_COMPOSE_FILE := infrastructure/compose/compose.test.yaml
-override TEST_SECRETS_DIR := $(or $(XDG_RUNTIME_DIR),/tmp)/aegissoc-test-secrets-$(shell id -u)
-override TEST_COMPOSE := AEGIS_TEST_SECRETS_DIR=$(TEST_SECRETS_DIR) docker compose -p aegissoc-test -f $(COMPOSE_FILE) -f $(TEST_COMPOSE_FILE)
+override TEST_COMPOSE := docker compose -p aegissoc-test -f $(COMPOSE_FILE) -f $(TEST_COMPOSE_FILE)
+override TEST_SECRET_NAMES := postgres_superuser_password postgres_owner_password postgres_app_password redis_password
+# Shell prologue for the test-db recipes (SEC-04): no /tmp fallback; the runtime
+# dir must be a real directory owned by the current uid; file operations happen
+# relative to it (cwd), never through a raw path. Sets rt, sn (secrets dir name,
+# relative to rt) and sd (absolute path, passed to compose). Runs are serialised
+# with flock so concurrent runs fail with a clear message instead of colliding.
+override TEST_GUARD := rt="$${XDG_RUNTIME_DIR:-}"; \
+  if [ -z "$$rt" ]; then echo 'test-db: XDG_RUNTIME_DIR is not set; refusing to fall back to /tmp' >&2; exit 1; fi; \
+  if [ ! -d "$$rt" ] || [ -L "$$rt" ] || [ ! -O "$$rt" ]; then echo 'test-db: XDG_RUNTIME_DIR must be a real directory owned by you' >&2; exit 1; fi; \
+  cd -- "$$rt"; sn=aegissoc-test-secrets; sd="$$rt/$$sn"; \
+  if [ -L "$$sn" ] || { [ -e "$$sn" ] && { [ ! -d "$$sn" ] || [ ! -O "$$sn" ]; }; }; then echo "test-db: $$sn exists but is a symlink, not a directory or not owned by you; refusing" >&2; exit 1; fi; \
+  exec 9> .aegissoc-test.lock; \
+  if ! flock -n 9; then echo 'test-db: another make test-db-* run is in progress (lock held); retry when it finishes' >&2; exit 1; fi
 override API_DIR      := apps/api
 override WEB_DIR      := apps/web
 override GITLEAKS_IMG := ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
@@ -21,7 +33,7 @@ override CLEAN_PATHS := $(API_DIR)/.ruff_cache $(API_DIR)/.mypy_cache $(API_DIR)
 
 .DEFAULT_GOAL := help
 
-.PHONY: help setup setup-ci bootstrap-admin up down test-db-up test-db-down logs psql trust-ca seed \
+.PHONY: help setup setup-ci bootstrap-admin up down test-db-up test-db-down test-db-env logs psql trust-ca seed \
         test-unit test-integration test-api test-e2e test-detections \
         lint typecheck scan openapi docs-check traceability demo-data \
         backup restore reset upgrade clean \
@@ -64,23 +76,47 @@ down: _need-compose ## Stop the stack (keeps volumes)
 # dir (mode 700, outside the repo). Never touches the persistent project.
 
 test-db-up: _need-compose ## Start disposable Postgres/Redis (tmpfs, throwaway passwords), wait healthy
-	@$(MAKE) --no-print-directory test-db-down >/dev/null
-	@umask 077 && mkdir -m 700 -- "$(TEST_SECRETS_DIR)" && \
-	for n in postgres_superuser_password postgres_owner_password postgres_app_password redis_password; do \
-	  head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n' > "$(TEST_SECRETS_DIR)/$$n" && \
-	  chmod 644 -- "$(TEST_SECRETS_DIR)/$$n"; \
-	done
-	@echo "test-db: throwaway secrets in $(TEST_SECRETS_DIR) (dir mode 700; files are readable by the container UID, never printed)"
-	$(TEST_COMPOSE) up -d --wait --wait-timeout 120
+	@set -eu; $(TEST_GUARD); \
+	cd -- "$(CURDIR)"; AEGIS_TEST_SECRETS_DIR="$$sd" $(TEST_COMPOSE) down --volumes --remove-orphans >/dev/null 2>&1 || true; \
+	cd -- "$$rt"; \
+	if [ -d "$$sn" ]; then for n in $(TEST_SECRET_NAMES); do rm -f -- "$$sn/$$n"; done; rmdir -- "$$sn"; fi; \
+	umask 077; mkdir -m 700 -- "$$sn"; \
+	for n in $(TEST_SECRET_NAMES); do \
+	  head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n' > "$$sn/$$n"; \
+	  chmod 644 -- "$$sn/$$n"; \
+	done; \
+	echo "test-db: throwaway secrets in $$sd (dir mode 700; files readable by the container UID, never printed)"; \
+	cd -- "$(CURDIR)"; AEGIS_TEST_SECRETS_DIR="$$sd" $(TEST_COMPOSE) up -d --wait --wait-timeout 120
 
-test-db-down: _need-compose ## Stop disposable test DB and delete its throwaway secrets (tmpfs-backed volumes of project aegissoc-test only)
-	@$(TEST_COMPOSE) down --volumes --remove-orphans
-	@if [ -d "$(TEST_SECRETS_DIR)" ] && [ ! -L "$(TEST_SECRETS_DIR)" ]; then \
-	  for n in postgres_superuser_password postgres_owner_password postgres_app_password redis_password; do \
-	    if [ -e "$(TEST_SECRETS_DIR)/$$n" ]; then rm -- "$(TEST_SECRETS_DIR)/$$n"; fi; \
-	  done; \
-	  rmdir -- "$(TEST_SECRETS_DIR)" && echo "test-db: removed $(TEST_SECRETS_DIR)"; \
+test-db-down: _need-compose ## Stop disposable test DB and delete its throwaway secrets (project aegissoc-test only)
+	@set -eu; $(TEST_GUARD); \
+	cd -- "$(CURDIR)"; AEGIS_TEST_SECRETS_DIR="$$sd" $(TEST_COMPOSE) down --volumes --remove-orphans; \
+	cd -- "$$rt"; \
+	if [ -d "$$sn" ]; then \
+	  for n in $(TEST_SECRET_NAMES); do rm -f -- "$$sn/$$n"; done; \
+	  rmdir -- "$$sn" && echo "test-db: removed $$sd"; \
 	fi
+
+# Host-side access without publishing any port (SR-24): the data stores sit on
+# an internal Docker network and the host reaches the container IP directly.
+# Role split: aegis_owner runs migrations (DDL, owns schema public); aegis_app is
+# the runtime role (DML only, no CREATE). Passwords are never printed; read the
+# files named below (e.g. PGPASSWORD="$(cat FILE)" for alembic or the app).
+test-db-env: _need-compose ## Print container IPs and connection values (no passwords) for the disposable DB
+	@set -eu; $(TEST_GUARD); \
+	[ -d "$$sn" ] || { echo 'test-db-env: test DB is not up (run make test-db-up)' >&2; exit 1; }; \
+	cd -- "$(CURDIR)"; \
+	cid="$$(AEGIS_TEST_SECRETS_DIR="$$sd" $(TEST_COMPOSE) ps -q postgres)"; \
+	rid="$$(AEGIS_TEST_SECRETS_DIR="$$sd" $(TEST_COMPOSE) ps -q redis)"; \
+	[ -n "$$cid" ] && [ -n "$$rid" ] || { echo 'test-db-env: containers not running (run make test-db-up)' >&2; exit 1; }; \
+	pip="$$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$$cid")"; \
+	rip="$$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$$rid")"; \
+	echo "# disposable DB (project aegissoc-test); container IPs change on every up"; \
+	echo "AEGIS_TEST_PG_HOST=$$pip"; echo "AEGIS_TEST_PG_PORT=5432"; echo "AEGIS_TEST_PG_DB=aegissoc"; \
+	echo "# migrations (DDL):"; echo "AEGIS_TEST_PG_OWNER_USER=aegis_owner"; echo "AEGIS_TEST_PG_OWNER_PASSWORD_FILE=$$sd/postgres_owner_password"; \
+	echo "# application (DML only):"; echo "AEGIS_TEST_PG_APP_USER=aegis_app"; echo "AEGIS_TEST_PG_APP_PASSWORD_FILE=$$sd/postgres_app_password"; \
+	echo "AEGIS_TEST_REDIS_HOST=$$rip"; echo "AEGIS_TEST_REDIS_PORT=6379"; echo "AEGIS_TEST_REDIS_PASSWORD_FILE=$$sd/redis_password"; \
+	echo "# example DSN without password: postgresql://aegis_owner@$$pip:5432/aegissoc"
 
 logs: _need-compose ## Follow logs (SERVICE=name to filter)
 	@case "$$SERVICE" in -*|*[!a-zA-Z0-9_.-]*) echo 'logs: invalid SERVICE name' >&2; exit 2;; esac; \

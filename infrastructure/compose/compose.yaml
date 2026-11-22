@@ -33,16 +33,19 @@ services:
       - pg_data:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
     tmpfs:
-      - /tmp:size=16m,mode=1777,noexec,nosuid
-      - /var/run/postgresql:size=1m,uid=70,gid=70,mode=0755,noexec,nosuid
+      - /tmp:size=16m,mode=1777,noexec,nosuid,nodev
+      - /var/run/postgresql:size=1m,uid=70,gid=70,mode=0755,noexec,nosuid,nodev
     healthcheck:
-      # TCP on purpose: during first-run init the temporary server listens on
-      # the socket only, so this stays unhealthy until init has finished.
+      # Real login as aegis_app (SEC-02): a failed init (no role/database) is
+      # never healthy. TCP on purpose: during first-run init the temporary
+      # server listens on the socket only. The password goes through a mode-600
+      # pgpass file on tmpfs (printf is a builtin), never argv or environment.
       test:
-        [
-          "CMD-SHELL",
-          "pg_isready -h 127.0.0.1 -p 5432 -U aegis_app -d aegissoc",
-        ]
+        - CMD-SHELL
+        - |
+          umask 077
+          printf '*:*:*:aegis_app:%s\n' "$$(sed 's/[\\:]/\\&/g' /run/secrets/postgres_app_password)" > /tmp/hc.pgpass
+          PGPASSFILE=/tmp/hc.pgpass PGCONNECT_TIMEOUT=2 psql -X -h 127.0.0.1 -U aegis_app -d aegissoc -tAc 'select 1' | grep -qx 1
       interval: 5s
       timeout: 3s
       retries: 20
@@ -64,7 +67,7 @@ services:
     volumes:
       - redis_data:/data
     tmpfs:
-      - /tmp:size=1m,uid=999,gid=999,mode=0700,noexec,nosuid
+      - /tmp:size=1m,uid=999,gid=999,mode=0700,noexec,nosuid,nodev
     # The password is written to a mode-600 file on tmpfs and passed as a config
     # file, so it never appears in argv or in the environment. AOF on, no
     # eviction (queued data must not be dropped silently), 256 MB cap.
@@ -72,8 +75,12 @@ services:
       - sh
       - -c
       - |
+        set -eu
         umask 077
-        printf 'requirepass %s\n' "$$(cat /run/secrets/redis_password)" > /tmp/auth.conf
+        pw="$$(cat /run/secrets/redis_password)"
+        if [ -z "$$pw" ]; then echo 'redis: empty password secret' >&2; exit 1; fi
+        printf 'requirepass %s\n' "$$pw" > /tmp/auth.conf
+        unset pw
         exec redis-server /tmp/auth.conf --dir /data --appendonly yes \
           --maxmemory 256mb --maxmemory-policy noeviction --save "" \
           --protected-mode yes

@@ -19,6 +19,11 @@ for f in postgres_owner_password postgres_app_password; do
 done
 
 psql -X -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<'SQL'
+-- Never let a failing password statement reach the server log (SEC-03):
+-- no statement text on errors, no statement logging, terse client errors.
+SET log_min_error_statement = panic;
+SET log_statement = none;
+\set VERBOSITY terse
 \set owner_pw `cat /run/secrets/postgres_owner_password`
 \set app_pw `cat /run/secrets/postgres_app_password`
 
@@ -28,6 +33,12 @@ CREATE ROLE aegis_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION
   PASSWORD :'app_pw';
 
 CREATE DATABASE aegissoc OWNER aegis_owner;
+
+-- Only the two application roles may connect (SR-27, SEC-06). Superusers are
+-- unaffected. statement_timeout is deliberately left to S1-T04.
+REVOKE CONNECT ON DATABASE aegissoc FROM PUBLIC;
+REVOKE CONNECT ON DATABASE postgres FROM PUBLIC;
+GRANT CONNECT ON DATABASE aegissoc TO aegis_owner, aegis_app;
 
 \connect aegissoc
 ALTER SCHEMA public OWNER TO aegis_owner;
