@@ -2,6 +2,7 @@
 
 import io
 import json
+import time
 from typing import Any
 
 import pytest
@@ -152,18 +153,6 @@ def test_level_filtering_applies() -> None:
     assert [r["event"] for r in _logger_output(None, stream)] == ["kept"]
 
 
-@pytest.mark.req("SR-18")
-def test_exceptions_are_rendered_as_text_in_the_json_record() -> None:
-    stream = io.StringIO()
-    configure_logging(level="INFO", stream=stream)
-    try:
-        raise RuntimeError("boom")
-    except RuntimeError:
-        get_logger("test").exception("failed")
-    (record,) = _logger_output(None, stream)
-    assert "RuntimeError: boom" in record["exception"]
-
-
 _IMPORT_TIME_LOGGER = get_logger("created.at.import.time")
 
 
@@ -201,3 +190,163 @@ def test_log_level_names_are_case_insensitive() -> None:
     get_logger("test").info("dropped")
     get_logger("test").warning("kept")
     assert [r["event"] for r in _logger_output(None, stream)] == ["kept"]
+
+
+@pytest.mark.req("SR-18")
+def test_exception_is_logged_with_type_and_frames() -> None:
+    stream = io.StringIO()
+    configure_logging(level="INFO", stream=stream)
+    try:
+        raise RuntimeError("anything")
+    except RuntimeError:
+        get_logger("test").exception("failed")
+    (record,) = _logger_output(None, stream)
+    assert "Traceback (most recent call last)" in record["exception"]
+    assert "RuntimeError" in record["exception"]
+    assert "test_core_logging.py" in record["exception"]
+
+
+@pytest.mark.req("SR-18")
+def test_exception_message_does_not_reach_the_output_when_raised_by_a_helper() -> None:
+    def fail() -> None:
+        message = "S3CRET-" + "RUNTIME-VALUE"  # built at run time: not a source literal
+        raise ValueError(message)
+
+    stream = io.StringIO()
+    configure_logging(level="INFO", stream=stream)
+    try:
+        fail()
+    except ValueError:
+        get_logger("test").exception("failed")
+    output = stream.getvalue()
+    assert "ValueError" in output
+    assert "S3CRET-RUNTIME-VALUE" not in output
+
+
+@pytest.mark.req("SR-18")
+def test_exc_info_given_as_an_exception_instance_is_also_message_free() -> None:
+    def fail() -> ValueError:
+        return ValueError("S3CRET-" + "INSTANCE-VALUE")
+
+    stream = io.StringIO()
+    configure_logging(level="INFO", stream=stream)
+    get_logger("test").error("failed", exc_info=fail())
+    assert "S3CRET-INSTANCE-VALUE" not in stream.getvalue()
+    assert "ValueError" in stream.getvalue()
+
+
+@pytest.mark.req("SR-18")
+def test_asgi_style_header_pairs_are_redacted() -> None:
+    event = {
+        "event": "request",
+        "headers": [
+            ("authorization", "Bearer asgi-secret"),
+            ("cookie", "s=asgi-secret"),
+            ("accept", "json"),
+            (b"authorization", b"Bearer asgi-bytes-secret"),
+            (b"x-api-key", b"asgi-bytes-secret"),
+            (b"accept", b"json"),
+        ],
+    }
+    result = _redact(event)
+    dumped = json.dumps(result, default=repr)
+    assert "asgi-secret" not in dumped
+    assert "asgi-bytes-secret" not in dumped
+    assert ["accept", "json"] in result["headers"]
+
+
+@pytest.mark.req("SR-18")
+def test_sets_and_frozensets_are_walked_not_logged_as_repr() -> None:
+    result = _redact({"event": "x", "tags": {("token", "set-secret")}, "ids": frozenset({"a"})})
+    assert "set-secret" not in json.dumps(result, default=repr)
+    assert result["ids"] == ["a"]
+
+
+@pytest.mark.req("SR-18")
+@pytest.mark.parametrize(
+    "key",
+    [
+        "pwd",
+        "passwd",
+        "user_passwd",
+        "credential",
+        "credentials",
+        "private_key",
+        "privateKey",
+        "private-key",
+        "dsn",
+        "csrf",
+        "X-CSRF",
+        "client_secret_key",
+    ],
+)
+def test_more_sensitive_key_names_are_dropped(key: str) -> None:
+    assert key not in _redact({"event": "x", key: "must-not-appear"})
+
+
+@pytest.mark.req("SR-18")
+@pytest.mark.parametrize(
+    "key",
+    ["path", "status", "user_id", "monkey", "requirements", "cwd", "keyboard", "host"],
+)
+def test_ordinary_keys_are_not_over_redacted(key: str) -> None:
+    assert _redact({"event": "x", key: "kept"})[key] == "kept"
+
+
+@pytest.mark.req("SR-18")
+@pytest.mark.parametrize(
+    "key",
+    [
+        "\uff50\uff41\uff53\uff53\uff57\uff4f\uff52\uff44",  # fullwidth "password"
+        "pass\u200bword",  # zero-width space
+        "pass\u00adword",  # soft hyphen
+        "to\u2060ken",  # word joiner
+        "AUTHORIZATION\ufeff",  # BOM
+        "\uff43ookie",  # fullwidth c
+    ],
+)
+def test_unicode_disguised_keys_are_still_dropped(key: str) -> None:
+    assert key not in _redact({"event": "x", key: "must-not-appear"})
+
+
+@pytest.mark.req("SR-18")
+def test_shared_references_cannot_blow_up_the_output() -> None:
+    node: Any = ["leaf"]
+    for _ in range(8):
+        node = [node] * 10  # 10**8 leaves if fully expanded
+    started = time.monotonic()
+    result = _redact({"event": "x", "payload": node})
+    assert time.monotonic() - started < 2
+    assert len(json.dumps(result, default=repr)) < 200_000
+
+
+@pytest.mark.req("SR-18")
+def test_wide_structures_are_cut_off_by_the_node_budget() -> None:
+    result = _redact({"event": "x", "payload": list(range(100_000))})
+    assert len(json.dumps(result, default=repr)) < 200_000
+    assert "[truncated]" in json.dumps(result)
+
+
+@pytest.mark.req("SR-18")
+def test_wide_mappings_are_cut_off_by_the_node_budget() -> None:
+    result = _redact({"event": "x", "payload": {f"k{i}": i for i in range(100_000)}})
+    assert len(json.dumps(result, default=repr)) < 200_000
+    assert "[truncated]" in json.dumps(result)
+
+
+@pytest.mark.req("SR-18")
+def test_exc_info_outside_an_exception_handler_is_ignored_not_a_crash() -> None:
+    stream = io.StringIO()
+    configure_logging(level="INFO", stream=stream)
+    get_logger("test").error("no active exception", exc_info=True)
+    (record,) = _logger_output(None, stream)
+    assert "exception" not in record
+    assert record["event"] == "no active exception"
+
+
+@pytest.mark.req("SR-18")
+def test_malformed_exc_info_values_are_ignored_not_a_crash() -> None:
+    stream = io.StringIO()
+    configure_logging(level="INFO", stream=stream)
+    get_logger("test").error("odd", exc_info="not-an-exc-info")
+    assert [r["event"] for r in _logger_output(None, stream)] == ["odd"]

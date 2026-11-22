@@ -3,7 +3,8 @@
 A client-supplied ``X-Request-ID`` is used only if it matches ``^[A-Za-z0-9-]{8,64}$``;
 anything else is replaced by a fresh UUIDv7 and never echoed. The id is stored on
 ``request.state.request_id``, bound to the structlog context for the duration of the
-request, and set on the response (replacing any header a handler set itself).
+request (restoring any outer binding afterwards), and set on the response, replacing any
+header a handler set itself.
 
 Pure ASGI on purpose: no ``BaseHTTPMiddleware``, so context variables and exceptions
 behave predictably.
@@ -47,8 +48,8 @@ class RequestIdMiddleware:
 
         request_id = _incoming_id(scope) or str(new_id())
         scope.setdefault("state", {})["request_id"] = request_id
-        structlog.contextvars.clear_contextvars()
-        structlog.contextvars.bind_contextvars(request_id=request_id)
+        # Tokens restore whatever an outer layer had bound; only our own binding is undone.
+        tokens = structlog.contextvars.bind_contextvars(request_id=request_id)
 
         async def send_with_id(message: Message) -> None:
             if message["type"] == "http.response.start":
@@ -62,4 +63,4 @@ class RequestIdMiddleware:
         try:
             await self.app(scope, receive, send_with_id)
         finally:
-            structlog.contextvars.clear_contextvars()
+            structlog.contextvars.reset_contextvars(**tokens)

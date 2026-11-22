@@ -284,3 +284,61 @@ def test_page_is_a_generic_response_model() -> None:
         Page[int](items=["not-an-int"])
     with pytest.raises(ValueError, match="extra"):
         Page[int](items=[], next_cursor=None, total=5)  # type: ignore[call-arg]
+
+
+def _raw_token(text: str) -> str:
+    return _token(text.encode("utf-8"))
+
+
+_UUID = str(ID)
+
+
+@pytest.mark.req("AC-PLAT-10")
+@pytest.mark.parametrize(
+    "raw_json",
+    [
+        '{"id":"' + _UUID + '","k":"alpha","v":1}',  # reordered keys
+        '{"k":"alpha","v":1,"id":"' + _UUID + '"}',
+        '{"v": 1, "k": "alpha", "id": "' + _UUID + '"}',  # extra whitespace
+        '{"v":1,"k":"alpha","id":"' + _UUID + '"} ',
+        ' {"v":1,"k":"alpha","id":"' + _UUID + '"}',
+        '{"v":1,"k":"\\u0061lpha","id":"' + _UUID + '"}',  # \u escape of a plain letter
+        '{"v":1,"k":"alp\\u0068a","id":"' + _UUID + '"}',
+        '{"v":1.0,"k":"alpha","id":"' + _UUID + '"}',
+        '{"v":1e0,"k":"alpha","id":"' + _UUID + '"}',
+    ],
+)
+def test_only_the_exact_form_the_encoder_emits_is_accepted(raw_json: str) -> None:
+    _rejected(_raw_token(raw_json))
+
+
+@pytest.mark.req("AC-PLAT-10")
+def test_the_exact_encoder_form_is_accepted() -> None:
+    raw = '{"v":1,"k":"alpha","id":"' + _UUID + '"}'
+    assert decode_cursor(_raw_token(raw), "str") == Cursor(key="alpha", id=ID)
+
+
+@pytest.mark.req("AC-PLAT-10")
+@pytest.mark.parametrize(
+    "key_json",
+    ['"\\u0000"', '"a\\u0000b"', '"\\ud800"', '"\\udfff"', '"ok\\ud83d"'],
+)
+def test_keys_that_would_break_the_database_driver_are_rejected(key_json: str) -> None:
+    raw = '{"v":1,"k":' + key_json + ',"id":"' + _UUID + '"}'
+    _rejected(_raw_token(raw))
+
+
+@pytest.mark.req("AC-PLAT-10")
+@pytest.mark.parametrize("key", ["\x00", "a\x00b", "\ud800", "ok\udfff"])
+def test_encoder_refuses_the_same_keys(key: str) -> None:
+    with pytest.raises(ValueError, match="key"):
+        encode_cursor(key, ID)
+
+
+@pytest.mark.req("AC-PLAT-10")
+@pytest.mark.parametrize(
+    "key",
+    ["tab\there", "line\nbreak", 'quote"d', "back\\slash", "emoji 😀", "日本語", "\x7f", "\x01"],
+)
+def test_other_unusual_but_storable_keys_still_round_trip(key: str) -> None:
+    assert decode_cursor(encode_cursor(key, ID), "str").key == key

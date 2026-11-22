@@ -267,3 +267,12 @@ def test_problem_detail_model_forbids_unknown_fields() -> None:
     ProblemDetail(**fields)
     with pytest.raises(ValueError, match="extra"):
         ProblemDetail(**fields, stack_trace="no")  # type: ignore[call-arg]
+
+
+@pytest.mark.req("AC-PLAT-10")
+@pytest.mark.parametrize("status", [204, 304])
+def test_bodyless_statuses_never_carry_a_body(status: int) -> None:
+    response = _client().get(f"/http/{status}")
+    assert response.status_code == status
+    assert response.content == b""
+    assert "application/problem+json" not in response.headers.get("content-type", "")

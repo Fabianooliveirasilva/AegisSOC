@@ -14,7 +14,7 @@ from typing import Any, ClassVar
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -151,9 +151,16 @@ def _slug_and_title(status: int) -> tuple[str, str]:
     return _STATUS_PROBLEMS[400] if status < 500 else _STATUS_PROBLEMS[500]
 
 
-async def _handle_http_exception(request: Request, exc: Exception) -> JSONResponse:
+_BODYLESS_STATUSES = frozenset({204, 205, 304})
+
+
+async def _handle_http_exception(request: Request, exc: Exception) -> Response:
     if not isinstance(exc, StarletteHTTPException):
         raise exc
+    if exc.status_code in _BODYLESS_STATUSES or exc.status_code < 200:
+        # These statuses must not carry a body, so no problem document.
+        headers = {**(exc.headers or {}), "X-Request-ID": _request_id(request)}
+        return Response(status_code=exc.status_code, headers=headers)
     slug, title = _slug_and_title(exc.status_code)
     detail = exc.detail if isinstance(exc.detail, str) and exc.detail else title
     return _problem_response(

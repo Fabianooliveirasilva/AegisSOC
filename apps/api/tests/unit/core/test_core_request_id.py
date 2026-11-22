@@ -115,3 +115,71 @@ def test_log_context_does_not_leak_after_the_request() -> None:
 def test_non_http_scopes_pass_through() -> None:
     with TestClient(_app()):  # runs the lifespan scope through the middleware
         pass
+
+
+async def _noop_receive() -> dict[str, Any]:
+    return {"type": "http.request", "body": b"", "more_body": False}
+
+
+async def _collect(messages: list[dict[str, Any]]) -> Any:
+    async def send(message: dict[str, Any]) -> None:
+        messages.append(message)
+
+    return send
+
+
+def _scope(request_id: bytes | None = b"client-id-12345") -> dict[str, Any]:
+    headers = [(b"x-request-id", request_id)] if request_id else []
+    return {"type": "http", "method": "GET", "path": "/", "headers": headers}
+
+
+@pytest.mark.req("AC-PLAT-10")
+async def test_outer_log_context_is_preserved_and_only_request_id_is_removed() -> None:
+    seen: dict[str, Any] = {}
+
+    async def app(scope: Any, receive: Any, send: Any) -> None:
+        seen.update(structlog.contextvars.get_contextvars())
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    structlog.contextvars.clear_contextvars()
+    structlog.contextvars.bind_contextvars(client_ip="10.0.0.1")
+    try:
+        send = await _collect([])
+        await RequestIdMiddleware(app)(_scope(), _noop_receive, send)
+        assert seen == {"client_ip": "10.0.0.1", "request_id": "client-id-12345"}
+        assert structlog.contextvars.get_contextvars() == {"client_ip": "10.0.0.1"}
+    finally:
+        structlog.contextvars.clear_contextvars()
+
+
+@pytest.mark.req("AC-PLAT-10")
+async def test_an_outer_request_id_is_restored_after_the_request() -> None:
+    async def app(scope: Any, receive: Any, send: Any) -> None:
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    structlog.contextvars.clear_contextvars()
+    structlog.contextvars.bind_contextvars(request_id="outer-request-id")
+    try:
+        send = await _collect([])
+        await RequestIdMiddleware(app)(_scope(), _noop_receive, send)
+        assert structlog.contextvars.get_contextvars() == {"request_id": "outer-request-id"}
+    finally:
+        structlog.contextvars.clear_contextvars()
+
+
+@pytest.mark.req("AC-PLAT-10")
+async def test_context_is_restored_even_when_the_application_raises() -> None:
+    async def app(scope: Any, receive: Any, send: Any) -> None:
+        raise RuntimeError("application failure")
+
+    structlog.contextvars.clear_contextvars()
+    structlog.contextvars.bind_contextvars(client_ip="10.0.0.1")
+    try:
+        send = await _collect([])
+        with pytest.raises(RuntimeError, match="application failure"):
+            await RequestIdMiddleware(app)(_scope(), _noop_receive, send)
+        assert structlog.contextvars.get_contextvars() == {"client_ip": "10.0.0.1"}
+    finally:
+        structlog.contextvars.clear_contextvars()

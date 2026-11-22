@@ -8,7 +8,10 @@ Because it is client input, decoding is strict. Anything that is not exactly wha
 ``encode_cursor`` produces is rejected with a 400 ``bad-request`` ("Invalid cursor", never
 echoing the cursor): wrong length or alphabet, non-canonical base64, invalid UTF-8,
 duplicate or extra keys, wrong version, a UUID that is not canonical lowercase, and a sort
-key whose type differs from the active sort field.
+key whose type differs from the active sort field. Only the exact byte form that
+``encode_cursor`` emits is accepted (no reordered keys, whitespace or ``\\u`` escapes), and
+text keys containing NUL or lone surrogates are refused because the database driver would
+reject them later as a 500.
 """
 
 import base64
@@ -51,9 +54,21 @@ class Page[T](BaseModel):
     next_cursor: str | None = None
 
 
+def _check_text_key(key: str) -> None:
+    """A text key becomes a bound query parameter: NUL and lone surrogates would fail there."""
+    if "\x00" in key:
+        raise ValueError("cursor key must not contain NUL")
+    try:
+        key.encode("utf-8")
+    except UnicodeEncodeError:
+        raise ValueError("cursor key is not valid Unicode") from None
+
+
 def _key_to_json(key: CursorKey) -> str | int:
     if isinstance(key, bool) or not isinstance(key, str | int | datetime):
         raise ValueError("unsupported cursor key type")
+    if isinstance(key, str):
+        _check_text_key(key)
     if isinstance(key, datetime):
         if key.tzinfo is None:
             raise ValueError("cursor datetime key needs a timezone")
@@ -65,12 +80,17 @@ def _key_to_json(key: CursorKey) -> str | int:
 
 def encode_cursor(key: CursorKey, id_: uuid.UUID) -> str:
     """Encode the last row's sort key and id. Refuses anything ``decode_cursor`` would reject."""
-    payload = {"v": CURSOR_VERSION, "k": _key_to_json(key), "id": str(id_)}
-    raw = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    raw = _canonical_json(_key_to_json(key), str(id_))
     token = base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
     if len(token) > MAX_CURSOR_LENGTH:
         raise ValueError("cursor too long")
     return token
+
+
+def _canonical_json(key: str | int, id_: str) -> bytes:
+    """The one byte form of a cursor payload; the decoder accepts nothing else."""
+    payload = {"v": CURSOR_VERSION, "k": key, "id": id_}
+    return json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
 def _no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -117,7 +137,13 @@ def _decode(token: str, key_type: CursorKeyType) -> Cursor:
     parsed_id = uuid.UUID(raw_id)
     if str(parsed_id) != raw_id:
         raise ValueError("id is not a canonical UUID")
-    return Cursor(key=_decode_key(payload["k"], key_type), id=parsed_id)
+    key = _decode_key(payload["k"], key_type)
+    if isinstance(key, str):
+        _check_text_key(key)
+    # Exactly the bytes the encoder would produce: no reordering, whitespace or \u escapes.
+    if _canonical_json(payload["k"], raw_id) != raw:
+        raise ValueError("not in canonical form")
+    return Cursor(key=key, id=parsed_id)
 
 
 def decode_cursor(token: str, key_type: CursorKeyType) -> Cursor:
@@ -126,5 +152,5 @@ def decode_cursor(token: str, key_type: CursorKeyType) -> Cursor:
         raise ValueError(f"unknown key_type: {key_type!r}")
     try:
         return _decode(token, key_type)
-    except (ValueError, TypeError, RecursionError):
+    except (ValueError, TypeError):
         raise BadRequest("Invalid cursor") from None
