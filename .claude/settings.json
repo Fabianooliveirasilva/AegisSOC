@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(git push *)",
+      "Bash(git -C * push*)",
+      "Bash(git tag *)",
+      "Bash(gh pr merge *)",
+      "Bash(gh release *)",
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "Bash(rm -rf *)",
+      "Bash(rm -fr *)",
+      "Bash(rm -Rf *)",
+      "Bash(rm -r -f *)",
+      "Bash(docker system prune *)",
+      "Bash(docker volume rm *)",
+      "Read(./infrastructure/compose/secrets/**)",
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./.env.*.local)"
+    ],
+    "ask": [
+      "Bash(docker compose down -v *)",
+      "Bash(docker compose down --volumes *)",
+      "Bash(docker compose * down -v*)",
+      "Bash(docker compose * down --volumes*)",
+      "Bash(make reset *)",
+      "Bash(uv add *)",
+      "Bash(pnpm add *)",
+      "Bash(git reset --hard *)",
+      "Bash(git clean *)",
+      "Edit(./.github/workflows/**)",
+      "Edit(./.gitleaks.toml)",
+      "Edit(./.trivyignore)",
+      "Edit(./.semgrep/**)",
+      "Edit(./docs/security/waivers.md)",
+      "Edit(./.claude/**)",
+      "Edit(./docs/DECISIONS.md)",
+      "Edit(./docs/adr/**)",
+      "Edit(./CLAUDE.md)"
+    ]
+  }
+}

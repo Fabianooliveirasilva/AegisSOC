@@ -45,14 +45,18 @@ Merging to `main`; releases/tags; activating a detection rule in the shared demo
 
 ## 2. Global guardrails (apply to every agent)
 
-Enforced by project `.claude/settings.json` permission rules (shared by all agents) — created in S1-T15:
+Enforced by project `.claude/settings.json` permission rules (shared by all agents), created in S1-T15. The lists below are the rules as implemented and reviewed in PR1; `.claude/settings.json` is the authoritative copy.
 
-- **Deny:** `Bash(git push:*)`, `Bash(git tag:*)`, `Bash(gh pr merge:*)`, `Bash(gh release:*)`, `Bash(curl:*)`, `Bash(wget:*)`, `Bash(rm -rf:*)`, `Bash(docker system prune:*)`, `Bash(docker volume rm:*)`, `Read(./infrastructure/compose/secrets/**)`, `Read(./.env)`, `Read(./.env.*)`.
-- **Ask (prompt the human):** `Bash(docker compose down -v:*)`, `Bash(make reset:*)`, `Bash(uv add:*)`, `Bash(pnpm add:*)`, `Edit(./.github/workflows/**)`, `Write(./.github/workflows/**)`, `Bash(git reset --hard:*)`, `Bash(git clean:*)`, and edits of scanner suppressions `.gitleaks.toml`, `.trivyignore`, `.semgrep/**`, `docs/security/waivers.md` (any reduction of scanner coverage is a waiver, HC-5). Every CI change is confirmed by the human; this applies equally to all agents, including DevOps, so no per-agent exception is needed (audit B-3).
+- **Deny:** `Bash(git push *)`, `Bash(git -C * push*)`, `Bash(git tag *)`, `Bash(gh pr merge *)`, `Bash(gh release *)`, `Bash(curl *)`, `Bash(wget *)`, `Bash(rm -rf *)`, `Bash(rm -fr *)`, `Bash(rm -Rf *)`, `Bash(rm -r -f *)`, `Bash(docker system prune *)`, `Bash(docker volume rm *)`, `Read(./infrastructure/compose/secrets/**)`, `Read(./.env)`, `Read(./.env.local)`, `Read(./.env.*.local)`.
+- **Ask (prompt the human):** `Bash(docker compose down -v *)`, `Bash(docker compose down --volumes *)`, `Bash(docker compose * down -v*)`, `Bash(docker compose * down --volumes*)`, `Bash(make reset *)`, `Bash(uv add *)`, `Bash(pnpm add *)`, `Bash(git reset --hard *)`, `Bash(git clean *)`, `Edit(./.github/workflows/**)`, `Edit(./.gitleaks.toml)`, `Edit(./.trivyignore)`, `Edit(./.semgrep/**)`, `Edit(./docs/security/waivers.md)`, `Edit(./.claude/**)`, `Edit(./docs/DECISIONS.md)`, `Edit(./docs/adr/**)`, `Edit(./CLAUDE.md)`. Every CI change and every edit of scanner suppressions (`.gitleaks.toml`, `.trivyignore`, `.semgrep/**`, `docs/security/waivers.md`; any reduction of scanner coverage is a waiver, HC-5) is confirmed by the human, equally for all agents including DevOps (audit B-3). Edits of the guardrails themselves (`.claude/**`), of `docs/DECISIONS.md`, of ADRs and of `CLAUDE.md` also ask, so no agent can weaken its own rules silently.
+- **Rule syntax:** Bash rules use the prefix form `Bash(cmd *)`, which also matches the bare command. Path rules use `Edit(path)` for every file-writing tool (Write, Edit) and `Read(path)` for reads; `Write(path)` rules are not evaluated and are therefore not used.
+- **`.env` files:** reads of `.env`, `.env.local` and `.env.*.local` are denied. A blanket `.env.*` rule is deliberately not used because it would also block the non-secret `.env.example` (S1-T01). Other `.env.*` files stay git-ignored and are covered by Gitleaks.
 - `curl`/`wget` stay denied. HTTP checks are written as pytest + HTTPX tests (e.g. TC-PLAT-09), which also makes them repeatable evidence.
 - Defensive-only scope (SR-38): no agent writes scanning, exploitation, malware or response-automation code; offensive requests are refused and escalated.
 
 > Limitation, stated honestly: Claude Code subagent `tools:` lists restrict which **tools** an agent has, not which **paths** or **commands**. Project permission rules apply to all agents equally. Path boundaries per agent (e.g. "QA does not edit `apps/`") are therefore instructions in the agent prompt **and** checked at PR review (PR template asks which agent changed which paths). This is part of TC-INF-05.
+>
+> Second limitation: permission rules match command prefixes and the Read tool. Forms such as `bash -c "git push"`, `git --git-dir=.git push` or a shell `cat` of a secret file are not matched; the maintainer-only push policy therefore also relies on the maintainer's credentials and, from S1-T13, on branch protection. The guardrail probe (protocol §5.2) records which forms are and are not covered.
 
 ## 3. Agents
 

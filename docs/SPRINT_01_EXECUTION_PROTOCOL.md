@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Date | 2026-11-21 (revision 2 after consistency review — see [SPRINT_01_PROTOCOL_REVIEW.md](SPRINT_01_PROTOCOL_REVIEW.md)) |
+| Date | 2026-11-21 (revision 2 after consistency review — see [SPRINT_01_PROTOCOL_REVIEW.md](SPRINT_01_PROTOCOL_REVIEW.md); §5.2 and §7 synced with the guardrails implemented in PR1) |
 | Author | Claude Opus (architect / governance) |
 | Applies to | S1-T01 … S1-T16 as specified in [sprints/SPRINT_01.md](sprints/SPRINT_01.md) |
 | Status | **In effect — D-10 approved 2026-11-21** (Sonnet implements; T12a acknowledged; conditions in [DECISIONS.md](DECISIONS.md)). D-05 still open: S1-T13 cannot complete without it. |
@@ -169,9 +169,9 @@ HC-0  D-10 approved (ideally D-05 done; planning-baseline commit on main)
 
 | Mechanism | What it enforces | Test |
 |---|---|---|
-| Subagent `tools:` lists | Tool types per agent (e.g. Security Reviewer has no Edit outside its review folder by instruction, no Write tool for source) | HC-1 review of each agent file against AGENT_SPECIFICATION §3 |
-| `.claude/settings.json` **deny** | `git push`, `git tag`, `gh pr merge`, `gh release`, `curl`, `wget`, `rm -rf`, `docker system prune`, `docker volume rm`, reads of `infrastructure/compose/secrets/**`, `.env*` | **Guardrail probe** after HC-1: attempt each denied action once and record the denial (evidence record EV-S01-000) |
-| `.claude/settings.json` **ask** | workflow edits; `uv add`, `pnpm add`; `docker compose down -v`; `make reset`; `git reset --hard`; `git clean`; edits of `.gitleaks.toml`, `.trivyignore`, `.semgrep/**`, `docs/security/waivers.md` | Probe: each triggers a prompt; the human declines; record it |
+| Subagent `tools:` lists | Tool types per agent (e.g. Security Reviewer has no Edit tool, and its Write is limited to `docs/security/reviews/` by instruction; Documentation has no Bash) | HC-1 review of each agent file against AGENT_SPECIFICATION §3 |
+| `.claude/settings.json` **deny** | `git push` (incl. `git -C <dir> push`), `git tag`, `gh pr merge`, `gh release`, `curl`, `wget`, `rm -rf` / `-fr` / `-Rf` / `-r -f`, `docker system prune`, `docker volume rm`, reads of `infrastructure/compose/secrets/**`, `.env`, `.env.local`, `.env.*.local` (exact list: AGENT_SPECIFICATION §2) | **Guardrail probe** by the Security Reviewer after HC-1, using only harmless variants (`--dry-run`, `--help`, `--version`, a scratch directory, a nonexistent secrets path); recorded as `docs/security/reviews/EV-S01-000-guardrail-probe.md` and listed in the evidence manifest |
+| `.claude/settings.json` **ask** | `docker compose … down -v` / `--volumes` (with or without global flags); `make reset`; `uv add`, `pnpm add`; `git reset --hard`; `git clean`; edits of `.github/workflows/**`, `.gitleaks.toml`, `.trivyignore`, `.semgrep/**`, `docs/security/waivers.md`, `.claude/**`, `docs/DECISIONS.md`, `docs/adr/**`, `CLAUDE.md` | Probe: Bash rules are triggered by the Security Reviewer with variants that are harmless even if approved by mistake (`--help`, `make reset -n`); `Edit` rules are triggered by the orchestrator with an `old_string` that does not exist, so an accidental approval changes nothing. The human declines each prompt; results go into EV-S01-000 |
 | Path bounds per agent | Instruction-based; tool lists can't express paths | Every PR's "paths changed by agent" table is compared with §3 by the Security Reviewer (`git diff --stat`); any out-of-bounds path blocks the PR |
 | No self-approval | Notes are written by a different role than the author | The PR template records author agent and validator agent; equal names block the PR |
 
@@ -223,7 +223,7 @@ The migration is rejected if any step fails.
 | Required metadata per record | evidence ID, requirement(s), test case(s), **git commit SHA**, **date/time UTC**, **environment** (OS, Docker, Python, Node and tool versions), **exact command**, **exit status**, **artefact path(s) + SHA-256**, producer |
 | Template | `qa/templates/EVIDENCE_RECORD_TEMPLATE.md` |
 | Not accepted | Textual claims ("all tests pass"), screenshots of a terminal without the artefact, results from a SHA other than the one under review, edited artefacts |
-| Independent reproduction | For each task, QA re-runs the recorded command(s) **at the recorded SHA in a clean checkout** (`git worktree add`), against a fresh disposable DB, and compares the outcome (exit status, pass/fail counts, finding counts). A mismatch is logged as a bug (or flaky-test investigation) and blocks the task |
+| Independent reproduction | For each task, QA re-runs the recorded command(s) **at the recorded SHA in a clean checkout** (`git archive <sha> | tar -x -C "$(mktemp -d)"`, which needs no git write, consistent with the QA Engineer's restrictions), against a fresh disposable DB, and compares the outcome (exit status, pass/fail counts, finding counts). A mismatch is logged as a bug (or flaky-test investigation) and blocks the task |
 | Per-task notes | QA validation note: `qa/reports/sprint-01/validation/<task>.md`. Security note: section in `docs/security/reviews/sprint-01.md`. Implementation report: PR description, or `qa/reports/sprint-01/tasks/<task>.md` before D-05 |
 | Traceability | `qa/reports/sprint-01/QA_REPORT.md` §4: requirement → TC → evidence ID → result |
 
