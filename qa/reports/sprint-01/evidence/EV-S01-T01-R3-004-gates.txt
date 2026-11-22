@@ -1,0 +1,65 @@
+# EV-S01-T01-R3-004
+# commit d5a6fd8 (git archive export), UTC start 2026-11-22T02:21:40Z, host Linux 6.8.0-149-generic, sh=/usr/bin/dash
+# command: cd export; sg docker -c 'make lint typecheck test-unit'; make scan; pre-commit run --all-files
+
+All checks passed!
+37 files already formatted
+pre-commit run --all-files
+ruff check...............................................................Passed
+ruff format..............................................................Passed
+check yaml...............................................................Passed
+fix end of files.........................................................Passed
+prettier.................................................................Passed
+Detect hardcoded secrets.................................................Passed
+Success: no issues found in 36 source files
+
+╔══╗─────────▶╔╗ ╔╗      ╔╗◀───┐
+╚╣╠╝◀─────┐  ╔╝╚╗║║────▶╔╝╚╗   │
+ ║║   ╔══╦══╦╩╗╔╝║║  ╔╦═╩╗╔╝╔═╦══╗
+ ║║╔══╣╔╗║╔╗║╔╣║ ║║ ╔╬╣╔╗║║ ║│║╔═╝
+╔╣╠╣║║║╚╝║╚╝║║║╚╗║╚═╝║║║║║╚╗║═╣║
+╚══╩╩╩╣╔═╩══╩╝╚═╝╚═══╩╩╝╚╩═╩╩═╩╝
+  └──▶║║                    ▲ 
+      ╚╝────────────────────┘
+
+
+---------
+Contracts
+---------
+
+Analyzed 35 files, 2 dependencies.
+----------------------------------
+
+aegissoc.core imports no other aegissoc package KEPT
+platform.auth layers (api > service > repository > models > schemas) KEPT
+platform.audit layers (api > service > models > schemas) KEPT
+Only platform.auth touches platform.auth models and repository KEPT
+Only platform.audit touches platform.audit models KEPT
+
+Contracts: 5 kept, 0 broken.
+cd apps/api && uv run pytest tests/unit
+============================= test session starts ==============================
+platform linux -- Python 3.12.16, pytest-9.2.0, pluggy-1.7.0
+rootdir: /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/exp/apps/api
+configfile: pyproject.toml
+plugins: cov-7.1.0, asyncio-1.5.0, platformdirs-4.14.8, anyio-4.16.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collected 4 items
+
+tests/unit/test_skeleton.py ....                                         [100%]
+
+============================== 4 passed in 0.21s ===============================
+exit=0
+docker run --rm --network none -v "/tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/exp:/repo:ro" ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f dir /repo --redact --no-banner
+2:21AM INF scanned ~1016580 bytes (1.02 MB) in 281ms
+2:21AM INF no leaks found
+scan: Semgrep and Trivy stages are available after S1-T13
+scan exit=0
+ruff check...............................................................Passed
+ruff format..............................................................Passed
+check yaml...............................................................Passed
+fix end of files.........................................................Passed
+prettier.................................................................Passed
+Detect hardcoded secrets.................................................Passed
+pre-commit exit=0
+# UTC end 2026-11-22T02:21:44Z

@@ -1,0 +1,176 @@
+# EV-S01-T01-R3-001
+# commit d5a6fd8 (git archive export), UTC start 2026-11-22T02:21:26Z, host Linux 6.8.0-149-generic, sh=/usr/bin/dash
+# command: battery.sh (make setup/setup-ci, fail-closed od modes, 20 existing-file cases, dup guard, concurrency, symlink/ro dir, perf, shells)
+
+### Done-when
+check-prereqs: all required prerequisites present
+pre-commit installed at .git/hooks/pre-commit
+setup-secrets: 4 created, 0 already present (dir: /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/t/bat/tmp.y8JiJkct2P/s)
+make: Saindo do diretório '/tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/exp'
+PASS make setup rc
+PASS dir mode
+PASS 4 files
+PASS mode600 postgres_app_password
+PASS 43 chars postgres_app_password
+PASS size postgres_app_password
+PASS mode600 postgres_owner_password
+PASS 43 chars postgres_owner_password
+PASS size postgres_owner_password
+PASS mode600 postgres_superuser_password
+PASS 43 chars postgres_superuser_password
+PASS size postgres_superuser_password
+PASS mode600 redis_password
+PASS 43 chars redis_password
+PASS size redis_password
+PASS distinct
+PASS distinct values
+PASS no value in output
+setup-secrets: 0 created, 4 already present (dir: /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/t/bat/tmp.y8JiJkct2P/s)
+make: Saindo do diretório '/tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/exp'
+PASS second run rc
+PASS second run msg
+PASS unchanged hashes
+PASS mtime unchanged
+setup-secrets: 1 created, 4 already present (dir: /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/t/bat/tmp.y8JiJkct2P/s)
+make: Saindo do diretório '/tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/exp'
+PASS setup-ci rc
+PASS ci file mode
+PASS ci 5 files
+PASS umask000 dir mode
+PASS umask000 file
+PASS unknown opt rc
+### fail-closed od modes
+mode=fail rc=1 files=0 msg=setup-secrets: ERROR: could not generate a valid value for postgres_superuser_password
+PASS od=fail rc nonzero
+PASS od=fail zero files
+mode=failpartial rc=1 files=0 msg=setup-secrets: ERROR: could not generate a valid value for postgres_superuser_password
+PASS od=failpartial rc nonzero
+PASS od=failpartial zero files
+mode=empty rc=1 files=0 msg=setup-secrets: ERROR: could not generate a valid value for postgres_superuser_password
+PASS od=empty rc nonzero
+PASS od=empty zero files
+mode=garbage rc=1 files=0 msg=setup-secrets: ERROR: could not generate a valid value for postgres_superuser_password
+PASS od=garbage rc nonzero
+PASS od=garbage zero files
+mode=short rc=1 files=0 msg=setup-secrets: ERROR: could not generate a valid value for postgres_superuser_password
+PASS od=short rc nonzero
+PASS od=short zero files
+mode=long rc=1 files=0 msg=setup-secrets: ERROR: could not generate a valid value for postgres_superuser_password
+PASS od=long rc nonzero
+PASS od=long zero files
+mode=big rc=1 files=1 msg=setup-secrets: ERROR: random source produced a duplicate value; refusing
+PASS od=big rc nonzero
+   (observation: 1 file(s) left; see note)
+mode=neg rc=1 files=1 msg=setup-secrets: ERROR: random source produced a duplicate value; refusing
+PASS od=neg rc nonzero
+   (observation: 1 file(s) left; see note)
+mode=const rc=1 files=1 msg=setup-secrets: ERROR: random source produced a duplicate value; refusing
+PASS od=const rc nonzero (dup guard)
+   (observation: 1 file(s) left; see note)
+no-PATH rc=127: /tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/exp/
+PASS no od/no PATH: files 0
+### existing-file cases
+PASS 644: rc 1
+PASS 644: named
+   -> setup-secrets: ERROR: existing file T/tmp.XqisU7Pd
+PASS 400: rc 1
+PASS 400: named
+   -> setup-secrets: ERROR: existing file T/tmp.TPI0B6SA
+PASS 660: rc 1
+PASS 660: named
+   -> setup-secrets: ERROR: existing file T/tmp.4hNBU7mI
+PASS empty600: rc 1
+PASS empty600: named
+   -> setup-secrets: ERROR: existing file T/tmp.bGsm8Gb5
+PASS symlink-valid: rc 1
+PASS symlink-valid: named
+   -> setup-secrets: ERROR: existing file T/tmp.4SPSdAuv
+PASS symlink-dangling: rc 1
+PASS symlink-dangling: named
+   -> setup-secrets: ERROR: existing file T/tmp.9VUpJsHV
+PASS garbage43: rc 1
+PASS garbage43: named
+   -> setup-secrets: ERROR: existing file T/tmp.eOKLbnN6
+PASS 44-newline: rc 1
+PASS 44-newline: named
+   -> setup-secrets: ERROR: existing file T/tmp.2GbjZdtX
+PASS dir: rc 1
+PASS dir: named
+   -> setup-secrets: ERROR: existing file T/tmp.8nhys3Lq
+PASS fifo: rc 1
+PASS fifo: named
+   -> setup-secrets: ERROR: existing file T/tmp.Om8Y5BVz
+PASS short5: rc 1
+PASS short5: named
+   -> setup-secrets: ERROR: existing file T/tmp.KHt55lT2
+PASS 44-nonewline: rc 1
+PASS 44-nonewline: named
+   -> setup-secrets: ERROR: existing file T/tmp.WWkfh9Sn
+PASS 42: rc 1
+PASS 42: named
+   -> setup-secrets: ERROR: existing file T/tmp.05rFgkqX
+PASS pad=: rc 1
+PASS pad=: named
+   -> setup-secrets: ERROR: existing file T/tmp.RKkUJ45O
+PASS space-in: rc 1
+PASS space-in: named
+   -> setup-secrets: ERROR: existing file T/tmp.XCYyT8bW
+PASS nul-in: rc 1
+PASS nul-in: named
+   -> setup-secrets: ERROR: existing file T/tmp.rQssNBDh
+PASS binary: rc 1
+PASS binary: named
+   -> setup-secrets: ERROR: existing file T/tmp.PgLHQTs2
+PASS dir-symlink: rc 1
+PASS dir-symlink: named
+   -> setup-secrets: ERROR: existing file T/tmp.vRbn6fJP
+PASS sock: rc 1
+PASS sock: named
+   -> setup-secrets: ERROR: existing file T/tmp.smwKaZWl
+PASS setuid-mode: rc 1
+PASS setuid-mode: named
+   -> setup-secrets: ERROR: existing file T/tmp.r773Kn9z
+PASS 644 content untouched
+PASS 644 mode untouched
+PASS dangling symlink not written through
+PASS link kept
+PASS valid existing kept rc0
+PASS valid content
+PASS dir chmod forced 700
+### duplicate guard (SEC-12)
+rc=1 setup-secrets: ERROR: random source produced a duplicate value; refusing
+PASS dup rc 1
+PASS dup: 1 file only (first), second not created
+### concurrency
+rcs:       2 0      10 2 
+files: postgres_app_password postgres_owner_password postgres_superuser_password redis_password 
+PASS concurrent: only 4 files, no extras
+PASS concurrent: all files valid 600/43
+PASS concurrent: distinct
+PASS post-concurrency run clean (rc0)
+PASS concurrent no secret value in outputs
+PASS 15 concurrency rounds: converged (rerun rc0, 4 files)
+### target dir symlink / readonly
+rc=0
+real mode 700 files 4
+PASS dir-symlink target works: files in real
+ro rc=0: setup-secrets: 4 created, 0 already present (dir: T/tmp.E0xS5z8vxd/ro)|
+PASS readonly dir (owner) rc nonzero or forced 700
+4
+ro-parent rc=1: mkdir: cannot create directory '/tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/
+PASS ro-parent rc nonzero
+/tmp/claude-1000/-home-fabiano--rea-de-Trabalho-FreeLancer-AegisSOC/8e55f7b6-0806-4340-a303-f49879f4be41/scratchpad/battery.sh, linha 113: 83057 Excedido tamanho limite de arquivo          (imagem do núcleo gravada) ( ulimit -f 0; sh $SCR $d > /dev/null 2> $T/fsz.err; echo "ulimit-f0 rc=$?" )
+files after: 1
+### interrupts
+### perf
+1 run (5 secrets) seconds: 0.023
+dash rc=0 0.023s
+PASS dash real run valid
+bash rc=0 0.059s
+PASS bash real run valid
+bash --posix rc=0 0.058s
+PASS bash --posix real run valid
+busybox sh rc=0 0.033s
+PASS busybox sh real run valid
+### stats: pass=106 fail=0
+# UTC end 2026-11-22T02:21:31Z

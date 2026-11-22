@@ -1,0 +1,14 @@
+# EV-S01-T01-R3-002
+# commit d5a6fd8 (git archive export), UTC start 2026-11-22T02:21:31Z, host Linux 6.8.0-149-generic, sh=/usr/bin/dash
+# command: python3 -I enc.py (40 vectors x 5 secrets vs base64.urlsafe_b64encode, fake od on PATH) for each shell
+
+== SH=sh
+vectors 40 x5 secrets each; mismatches 0
+== SH=bash
+vectors 40 x5 secrets each; mismatches 0
+== SH=dash
+vectors 40 x5 secrets each; mismatches 0
+== SH=bash --posix
+vectors 40 x5 secrets each; mismatches 0
+== busybox sh: harness limitation, busybox ash resolves od to its built-in applet so the fake od is not used; real-od runs are validated in battery (perf section)
+# UTC end 2026-11-22T02:21:40Z

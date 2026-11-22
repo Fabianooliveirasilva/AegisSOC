@@ -1,0 +1,25 @@
+# EV-S01-T01-R3-003
+# commit d5a6fd8 (git archive export), UTC start 2026-11-22T02:21:40Z, host Linux 6.8.0-149-generic, sh=/usr/bin/dash
+# command: race injection: fake od creates the target (regular file / symlink) after the existence check; shells dash, bash, bash --posix
+
+== dash / file
+rc=2
+victim=keep target_prefix=victim files=1
+== dash / symlink
+rc=2
+victim=keep target_prefix=keep files=1
+== bash / file
+setup-secrets: ERROR: could not create postgres_superuser_password (path appeared concurrently?)
+rc=1
+victim=keep target_prefix=victim files=1
+== bash / symlink
+setup-secrets: ERROR: could not create postgres_superuser_password (path appeared concurrently?)
+rc=1
+victim=keep target_prefix=keep files=1
+== bash --posix / file
+rc=1
+victim=keep target_prefix=victim files=1
+== bash --posix / symlink
+rc=1
+victim=keep target_prefix=keep files=1
+# UTC end 2026-11-22T02:21:40Z
