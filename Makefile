@@ -4,14 +4,15 @@
 SHELL := /bin/sh
 export PATH := $(HOME)/.local/bin:$(PATH)
 
-COMPOSE_FILE := infrastructure/compose/compose.yaml
-COMPOSE      := docker compose -p aegissoc -f $(COMPOSE_FILE)
-API_DIR      := apps/api
-WEB_DIR      := apps/web
-GITLEAKS_IMG := ghcr.io/gitleaks/gitleaks:v8.30.1
+# `override` keeps command-line assignments (make X=...) from replacing these (SEC-04).
+override COMPOSE_FILE := infrastructure/compose/compose.yaml
+override COMPOSE      := docker compose -p aegissoc -f $(COMPOSE_FILE)
+override API_DIR      := apps/api
+override WEB_DIR      := apps/web
+override GITLEAKS_IMG := ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
 
 # Fixed, relative cache locations removed by `make clean` (never secrets or volumes).
-CLEAN_PATHS := $(API_DIR)/.ruff_cache $(API_DIR)/.mypy_cache $(API_DIR)/.pytest_cache \
+override CLEAN_PATHS := $(API_DIR)/.ruff_cache $(API_DIR)/.mypy_cache $(API_DIR)/.pytest_cache \
                $(API_DIR)/htmlcov $(API_DIR)/.coverage $(API_DIR)/coverage.xml \
                .ruff_cache .mypy_cache .pytest_cache
 
@@ -56,7 +57,8 @@ down: _need-compose ## Stop the stack (keeps volumes)
 	$(COMPOSE) down
 
 logs: _need-compose ## Follow logs (SERVICE=name to filter)
-	$(COMPOSE) logs -f $(SERVICE)
+	@case "$$SERVICE" in -*|*[!a-zA-Z0-9_.-]*) echo 'logs: invalid SERVICE name' >&2; exit 2;; esac; \
+	$(COMPOSE) logs -f $$SERVICE
 
 psql: _need-compose ## psql as the application role inside the postgres container
 	$(COMPOSE) exec postgres sh -c 'PGPASSWORD="$$(cat /run/secrets/postgres_app_password)" psql -U aegis_app -d aegissoc'
@@ -100,7 +102,7 @@ typecheck: ## mypy + import-linter (+ tsc when web exists)
 	@if [ -f $(WEB_DIR)/package.json ]; then pnpm --filter ./$(WEB_DIR) --if-present run typecheck; fi
 
 scan: ## Secret scan now; Semgrep/Trivy from container images after S1-T13
-	docker run --rm -v "$(CURDIR):/repo:ro" $(GITLEAKS_IMG) dir /repo --redact --no-banner
+	docker run --rm --network none -v "$(CURDIR):/repo:ro" $(GITLEAKS_IMG) dir /repo --redact --no-banner
 	@echo "scan: Semgrep and Trivy stages are available after S1-T13"
 
 openapi: ## Regenerate docs/api/openapi.json

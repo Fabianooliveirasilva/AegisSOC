@@ -1,20 +1,23 @@
-# Hook revisions are pinned (verified 2026-11-21). Update deliberately.
+# Hook revisions are frozen to commit SHAs (SEC-03); the tag is kept in a comment.
+# Update deliberately (pre-commit autoupdate --freeze) and review the diff.
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.17.6
+    rev: 9026c9127e153371d7a78dfcb0c45ae2046a3d10 # frozen: v0.17.6
     hooks:
       - id: ruff-check
         args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # frozen: v6.0.0
     hooks:
       - id: check-yaml
       - id: end-of-file-fixer
 
+  # OPEN ITEM (SEC-03): mirrors-prettier is archived upstream and pins Prettier 3.1.0.
+  # Replace with a maintained hook or the pnpm-locked Prettier once S1-T11 lands.
   - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v3.1.0
+    rev: ffb6a759a979008c0e6dff86e39f4745a2d9eac4 # frozen: v3.1.0
     hooks:
       - id: prettier
         # Markdown is excluded: the approved planning docs are not reformatted
@@ -22,8 +25,9 @@ repos:
         types_or: [yaml, json, ts, tsx, javascript, css]
 
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.30.1
+    rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e # frozen: v8.30.1
     hooks:
-      # Docker-based hook; the image tag is pinned here (upstream entry is unpinned).
+      # Docker-based hook; image pinned by digest (upstream entry is unpinned) and run
+      # without network. Leading entry tokens go to `docker run` (docker_image language).
       - id: gitleaks-docker
-        entry: ghcr.io/gitleaks/gitleaks:v8.30.1 git --pre-commit --redact --staged --verbose
+        entry: --network none ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f git --pre-commit --redact --staged --verbose
