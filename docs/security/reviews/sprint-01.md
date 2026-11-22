@@ -362,3 +362,253 @@ Proposal 3 (single exclusive open) is met for regular files. I propose to extend
 | **S1-T02** | **No blocking findings** | 0 | 0 | Unchanged since round 2. `d5a6fd8` and `ec6bf1d` do not touch S1-T02 paths. Bandit and pip-audit results are identical |
 
 This review approves nothing. Merge stays with the maintainer, and the QA notes are separate.
+
+---
+
+## S1-T03 — Core (log redaction, error model, request id, cursor validation, config secret loading)
+
+| Field | Value |
+|---|---|
+| Branch | `feat/S1-T03-core` |
+| Commit | `61bbdd6` (`61bbdd6103b8a40fbbb656a9934fdd40fb01a3f3`). Diff reviewed: `git diff 8489ea3..61bbdd6` (14 files, +1703/−6) |
+| Date (UTC) | 2026-11-22T02:58Z – 03:01Z |
+| Environment | Linux 6.8.0-149-generic, Python 3.12 (project venv), uv 0.13.7, Docker 29.1.3. Libraries in the venv: structlog 26.1.0, pydantic 2.14.4, pydantic-settings 2.16.3, FastAPI 0.165.0, Starlette 1.10.0, uvicorn 0.54.0 |
+| Method | Clean export with `git archive 61bbdd6 apps/api` into the session scratchpad. Attack scripts ran against that copy with `python -I`. A throwaway FastAPI app wired `RequestIdMiddleware` and `install_error_handlers` the way `main.py` is expected to, and ran under uvicorn on `127.0.0.1:18731`, driven by a raw-socket client. The real secrets directory was never read. Synthetic secret marker: `S3CRET-VALUE-xyz` |
+| Requirements | SR-18, SR-16, SR-13, SR-09, SR-22 (context only); AC-PLAT-10; audit finding B-2; threats T-22, T-08, T-14, T-25 |
+| Producer | security-reviewer agent |
+
+**Status: No blocking findings** (0 Critical, 0 High, **1 Medium**, 7 Low, 8 Info). I recommend closing **S1-T03-SEC-01** before any endpoint that handles credentials (S1-T06) merges. The fix can land in this task or in the `main.py` wiring (S1-T05/S1-T09), but it must be tracked.
+
+### File-bounds check (§3)
+
+`git diff --name-only 8489ea3..61bbdd6 | grep -vE '^apps/api/(src/aegissoc/core/|tests/unit/core/)'` prints nothing, so every path is within S1-T03 bounds. `uv.lock` and `pyproject.toml` are unchanged (`git diff --quiet 8489ea3 61bbdd6 -- uv.lock pyproject.toml` → exit 0). The only new import, `uuid6` in `core/ids.py`, was already a declared and locked dependency from S1-T02 (MIT), so this task adds no dependency. The working tree has an untracked `qa/api/core_s1t03/`. It is not part of `61bbdd6` and I did not review it.
+
+### Scanner results
+
+| Scanner | Command | Exit | Result | Raw artefact (SHA-256) |
+|---|---|---|---|---|
+| Bandit 1.9.4 | `cd apps/api && uv run bandit -r src -f json -o <scratch>/bandit.json -q` | 0 | 0 issues, 540 LOC, 0 `#nosec` | `bandit.json` `7504d385…6bb0c` |
+| pip-audit (installed env) | `uv run pip-audit -f json -o <scratch>/pip-audit-env.json` | 0 | 80 deps, 0 known vulnerabilities | `pip-audit-env.json` `d05fd746…1f66` (identical to the S1-T02 run) |
+| pip-audit (lockfile, hash-checked) | `uv export --frozen --all-groups --no-emit-project …` then `pip-audit -r req-locked.txt --require-hashes --disable-pip` | 0 | 79 deps, 0 known vulnerabilities | `pip-audit-lock.json` `55b68c13…d0d8` (identical to the S1-T02 run) |
+| Gitleaks v8.30.1 (working tree) | `sg docker -c 'make scan'` (digest-pinned image, `--network none`, `:ro`) | 0 | `scanned ~1367225 bytes (1.37 MB) in 519ms` / `no leaks found` | console only |
+| Gitleaks v8.30.1 (commit range) | `docker run --rm --network none -v "$PWD:/repo:ro" ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0… git /repo --log-opts=8489ea3..61bbdd6 --redact --no-banner` | 0 | `1 commits scanned.` / `no leaks found` | console only |
+| Semgrep, Trivy | — | — | **Not run.** They arrive with S1-T13 | — |
+| pnpm audit | — | — | Not applicable (no frontend change) | — |
+
+Attack-run outputs (scratchpad, `…/scratchpad/t03/`): `log_attack.out` `cc7aa112…e110`, `log_blowup.out` `563dad2f…d0c7`, `client.out` `c7aaf91e…e2ba`, `uvicorn.stdout` `38bdc997…69ef`, `uvicorn.stderr` `50e8a446…ef88`, `cursor_attack.out` `8fcadf0d…d6f8`, `config_attack.out` `874a0950…40eb`, `fifo.out` `296a37e9…856c`. The same artefact retention gap as in earlier rounds applies: the orchestrator or QA should re-produce and commit them under `qa/reports/sprint-01/evidence/` if they are needed.
+
+### What was verified (no finding)
+
+- **Redaction at depth and case:** `PASSWORD=`, nested `{"a":{"b":{"password":…}}}`, `[{"password":…}]`, bytes values and bytes keys (`{b"password": …}`), header dicts (`X-CSRF-Token`, `set-cookie`, `Authorization`), `.bind(session_id=…)` and `contextvars.bind_contextvars(csrf_token=…)` are all dropped. A non-string key whose `__str__` returns `"password"` is dropped too, because `str(key)` is matched.
+- **Logger created before `configure_logging()` is redacted:** `early = get_logger("early")` before configuration, then `early.info("e", password=S)` → `{"logger_name": "early", "event": "e", …}`, with no value.
+- **Log forging:** newlines, CR, ANSI ESC, U+2028 and U+0085 in values **and keys** are JSON-escaped (`"k\n{\"f\":1}": "v"`, `"\u001b[31m"`, `"k y"`). No second line can be forged (SR-18).
+- **Depth and cycles:** a 5000-deep dict and self-referencing dicts and lists stop at depth 8 with `"[truncated]"`. No `RecursionError`.
+- **`format_exc_info` does not print frame locals:** `password = S` as a local in the raising frame does not appear (structlog's plain `format_exc` path).
+- **Error model, 4xx:** 422 bodies carry only `loc`/`msg`/`type`. Pydantic `input` and `ctx` are dropped, so neither the submitted `password` nor the `extra` field value is reflected. The same holds for query validation (`?limit=S3CRET…` → `int_parsing`, no value). Malformed JSON → 400 `bad-request` "Malformed JSON body", with no parser position or excerpt. A non-string `HTTPException.detail` (`{"secret": …}`) is replaced by the title. `instance` never includes the query string.
+- **Error model, 500:** the body is the fixed `internal-error` problem: no trace, no class, no message, no path to a source file. The app's own log line has `error_type`, `path` and `request_id` only. The 500 response still carries `X-Request-ID`.
+- **Response splitting:** an `HTTPException` header value with `\r\nSet-Cookie:` is refused by the server (`RuntimeError: Invalid HTTP header value.`), and the connection closes with no response. No header is injected.
+- **X-Request-ID:** `fullmatch` on `[A-Za-z0-9-]{8,64}`. Too short, 65 characters, `<script>`, a space, `!` and Latin-1 `é` are all replaced by a fresh UUIDv7 and never echoed. ASGI lowercases header names, so `X-REQUEST-ID` works the same. With duplicate headers the first one wins, and if it is invalid a fresh id is generated (the second one is not used as a fallback). A handler-set `X-Request-ID` is replaced: only one header goes out. `request_id` is only ever written into JSON or one header value from a restricted alphabet, so there is no log or header injection.
+- **Cursor (B-2):** the 512-character length and alphabet check runs **before** any decode (1,000,000 characters → 400 in 41 µs). Padding, a non-canonical last base64 character, a BOM, invalid UTF-8, a list payload, duplicate keys, extra or missing keys, `v` of `true` or `1.0`, a bool, float, `NaN`, `1e2`, or `"5"` where an int is expected, `2**63`, a braced or uppercase UUID, naive or `+01:00` or `Z` datetimes, and a key type that differs from the sort field are all rejected with the fixed `"Invalid cursor"` (the input is never echoed, the chained exception is suppressed with `from None`). A 300-digit integer is rejected (it is out of range, well below Python's int-parsing limit). Nesting depth is bounded by the length cap, so there is no `RecursionError`. `decode_cursor` returns typed values (`str | int | datetime`, `uuid.UUID`). No module in `core/` builds SQL text (`git diff … | grep -E 'text\(|execute\('` finds nothing), so forging a cursor gives only what a bound parameter under the caller's permissions allows. Timing does not matter: there is no secret to compare against.
+- **Config:** `extra="forbid"` plus `PrivateAttr` means neither `Settings(_database_password=…)` nor `Settings(database_password=…)` is accepted, and `AEGIS_DATABASE_PASSWORD` / `AEGIS__DATABASE_PASSWORD` in the environment have no effect (the secret still comes from the file). `repr`, `model_dump`, `model_dump_json`, `vars()` and `__pydantic_private__`'s string form do not contain the secret. Errors for a missing file, a directory, `/dev/null`, a file holding only `"\n"` and non-UTF-8 content name the path only. The `UnicodeDecodeError` (which would show bytes) is suppressed with `from None`, and the formatted traceback contains neither the content nor the decode error. `AEGIS_ENV=production` is rejected (`Literal["local","ci"]`). In `local`, missing `*_FILE` values fail closed.
+
+### Findings
+
+| ID | Severity | Location | Ref | Finding | Fix suggestion |
+|---|---|---|---|---|---|
+| **S1-T03-SEC-01** | **Medium** | `core/errors.py` `_handle_unhandled` (module docstring: "The server log gets the exception class and the request id, not the message"); `core/logging.py` processor order (`redact_sensitive` before `format_exc_info`) | SR-18, T-22 | **Unhandled exceptions reach the server log with their full message and traceback, unredacted and not as JSON.** Starlette's `ServerErrorMiddleware` calls the `Exception` handler, sends the 500, and then **re-raises** so the server can log it. uvicorn's `uvicorn.error` logger then writes `Exception in ASGI application` plus the full traceback to stderr. That includes the exception message and, for a Pydantic `ValidationError` raised inside a service, `input_value='<the submitted value>'`. So the docstring's guarantee does not hold in a real deployment. Realistic carriers of secrets in exception text: Pydantic errors on internal models built from request data (login bodies in S1-T06), and driver errors (asyncpg `DETAIL: Key (…)=(…)`). The same applies inside the app: any `log.exception(…)` / `exc_info=True` renders the message via `format_exc_info`, which runs **after** redaction, so the `exception` field is never redacted | (a) In `configure_logging`, take over stdlib logging: route `uvicorn`, `uvicorn.error` and the root logger through `structlog.stdlib.ProcessorFormatter` with the same JSON and redaction chain, and drop `exc_info` on `uvicorn.error` "Exception in ASGI application" records (the app's own line already gives class plus request id). Alternatively, (b) add an outermost pure-ASGI guard that swallows the re-raised exception after the 500 has been sent. Also decide on a policy for `exc_info` in app logs: either strip `exc_info` and log only `error_type`, or put a processor after `format_exc_info` that keeps only the frame list and the exception class. Add a test: a route raising `ValueError("…S3CRET…")` and an internal `ValidationError` with a password input; capture **stdout and stderr** of the server/app logging and assert the marker is absent (proposed TC under TC-SEC-20) |
+| S1-T03-SEC-02 | Low | uvicorn access log (wiring outside `core/`, noted here because the `instance` design relies on it) | SR-18, T-22 | The uvicorn access log is plain text (not JSON) and records the **full query string**: `"GET /boom?token=S3CRET-VALUE-xyz HTTP/1.1" 500`. `errors.py` deliberately keeps query strings out of `instance` because "they may hold tokens", but the access log writes them anyway | In S1-T05/S1-T09 wiring, run uvicorn with `--no-access-log` (or a `log_config`) and emit a JSON access line from middleware with method, path (no query), status, duration and `request_id`. Or redact query values whose names match the sensitive pattern |
+| S1-T03-SEC-03 | Low | `core/logging.py` `_SENSITIVE_KEY`, `_clean` | SR-18 | **Gaps in the key denylist.** Not redacted: `pwd`, `passwd`, `credential(s)`, bare `csrf`, `private_key`, `ingest_key` and other `*_key` names, `anthropic_key` (SR-18 names Anthropic keys explicitly), and `dsn` (`postgresql://u:S3CRET@h/db` was logged verbatim). Keys are not normalised, so `ｐａｓｓｗｏｒｄ` (fullwidth), `pass​word` and `pаssword` (Cyrillic а) bypass it. That matters only where keys come from untrusted data, such as a logged header or JSON dict. `set`/`frozenset` values are not traversed and render as `repr`: `{("password", S)}` gave `"{('password', 'S3CRET-VALUE-xyz')}"`. Sequences of pairs (`[("password", S)]`) are not treated as mappings | Extend the pattern to `passw(or)?d\|pwd\|secret\|token\|session\|authori[sz]ation\|cookie\|csrf\|credential\|api[-_]?key\|private[-_]?key\|(^\|[-_])key$\|dsn`. Normalise the key first: `unicodedata.normalize("NFKC", str(key))`, then remove `Cf` characters, then casefold. Traverse `set`/`frozenset` as lists. Add the cases above to `test_core_logging.py` |
+| S1-T03-SEC-04 | Low | `core/logging.py` `_clean` | T-14 | **No breadth or size bound, so shared references expand exponentially.** Depth is capped at 8, but a dict that references itself under *n* keys expands to n⁸ nodes: n=5 → 1.7 MB in 0.05 s, n=7 → 17.4 MB in 0.53 s, n=10 → about 10⁸ nodes (not run). A flat 2,000,000-item list → a 16.9 MB log line in 0.86 s. JSON parsed from a request cannot build shared references, so an attacker can trigger this only if code logs a large untrusted collection. That is why the severity is Low | Cap the items per container (for example 100, then `"[truncated]"`) and the total node budget per event. Track `id()` of containers already visited and emit `"[cycle]"`. Optionally cap the length of rendered strings |
+| S1-T03-SEC-05 | Low | `core/pagination.py` `_decode`, `_decode_key` | B-2, SR-09 | **The decoder is not as strict as its docstring claims, and some `str` keys will fail later as a 500.** Accepted although `encode_cursor` never produces them: whitespace JSON (`{"v": 1, "k": 5, …}`), reordered keys, `A` escapes, `-0`. Also accepted as `str` keys: `"a\u0000b"` (PostgreSQL `text` rejects NUL, so the bound parameter will raise a driver error and the client gets a 500 instead of a 400) and a lone surrogate `"\ud800"` (cannot be UTF-8 encoded by the driver, also a 500). The nil UUID is accepted (harmless). There is no security bypass because the values stay bound parameters, but it is an availability and error-hygiene gap and the docstring is wrong | After parsing, rebuild with `encode_cursor(key, id)` and require `== token`. That enforces the canonical form fully, and a surrogate raises `UnicodeEncodeError` (a `ValueError`) → 400. Additionally reject `str` keys that contain `\x00`–`\x1f` or surrogates. Add tests |
+| S1-T03-SEC-06 | Low | `core/config.py` `read_secret_file` | SR-16, T-14 | `path.read_bytes()` has **no type or size check**. A FIFO blocks startup forever (`timeout 5 … Settings()` → exit 124). A 200 MiB file of NUL bytes is accepted as the password (432 MiB RSS, 0.72 s). `/dev/zero` would exhaust memory. A symlink is followed (`link → /etc/hostname` was accepted). The path is operator-controlled (an environment variable or Docker secret), so there is no remote trust boundary | `fd = os.open(path, os.O_RDONLY \| os.O_NONBLOCK \| os.O_CLOEXEC)`. Use `os.fstat` and require `S_ISREG`, then read at most `MAX_SECRET_BYTES + 1` (for example 4096) and reject anything longer. Reject NUL and control characters in the value. Following a symlink is fine, because Docker secrets can be symlinks; just document it |
+| S1-T03-SEC-07 | Low | `core/config.py` `database_url`, `redis_url` (plain `str`) | SR-16, SR-18 | **A secret can still enter through an environment variable.** `AEGIS_DATABASE_URL=postgresql://u:S3CRET@h/db` is accepted and printed by `repr(settings)` (`leak_in_repr=True`), and it would appear in a `ValidationError` `input_value` and in any log of the settings. That contradicts the module docstring ("Secrets are never read from plain environment variables") | Validate both URLs and reject any URL with a password in its userinfo (`urllib.parse.urlsplit(u).password is not None` → `ValueError("… must not contain a password; use *_PASSWORD_FILE")`, without echoing the URL). Or type them as `SecretStr` |
+| S1-T03-SEC-08 | Low | `core/logging.py` (documented limit) | SR-18 | **Redaction covers keys only, never text.** `log.info(f"login password={S}")` and `exception="password=…"` are logged verbatim. I find this limit **acceptable** as a design choice, because redacting free text is unreliable. It is only safe with a mechanical guard, because SR-18 is a hard requirement | When S1-T13 adds `.semgrep/aegissoc.yml`, add a rule against f-strings, `%` or `.format` in the first argument of `log.*` calls, and against passing `password`/`token`/`secret` variables as positional arguments. Until then, reviewers check it by hand |
+| S1-T03-SEC-09 | Info | `core/errors.py` `_slug_and_title` | AC-PLAT-10 | Statuses outside the table map to `bad-request` / "Bad request" while keeping their own status: 405 → `{"type": ".../bad-request", "title": "Bad request", "status": 405, "detail": "Method Not Allowed"}`, and 418 likewise. `type`/`title` no longer match the status. This is not a disclosure | Add `405 method-not-allowed` (keep `Allow`), or map unknown 4xx codes to a generic `client-error` slug. Ask the maintainer whether API_SPECIFICATION §1.3 should list 405 |
+| S1-T03-SEC-10 | Info | `core/errors.py` `_handle_http_exception` | T-22 | `HTTPException.detail` (when it is a string) and `.headers` pass through verbatim. Both are developer-controlled today (Starlette's own details are "Not Found" and "Method Not Allowed"), but a future `HTTPException(400, f"user {name} …")` would reflect input or internal data | Prefer `DomainError` subclasses with fixed details in services. Consider passing through only an allowlist of headers (`Allow`, `Retry-After`, `WWW-Authenticate`) |
+| S1-T03-SEC-11 | Info | `core/errors.py` `instance=request.url.path` | T-22 | `instance` reflects the percent-decoded path, including control characters (`"/S3CRET-VALUE-xyzX-Injected: 1\u001b[31m"`) and long paths (a 20,000-character path → a 20,173-byte body). It is JSON-encoded, sent only to the same requester and bounded by the server's request-line limit. **Acceptable** | Optionally truncate `instance` (for example to 256 characters) |
+| S1-T03-SEC-12 | Info | `core/request_id.py` | T-08 | A client can choose any valid id, including one that another request already used, so correlation by `request_id` can be confused on purpose. This is inherent to accepting client ids | When the trusted-proxy work lands (S1-T09), consider accepting client ids only from the trusted proxy, or log both `client_request_id` and a server-generated id |
+| S1-T03-SEC-13 | Info | `core/config.py` | SR-13 | `SecretStr` pickles in plain text (`pickle.dumps(settings)` contains the secret). `model_copy(update={"_database_password": "X"})` can overwrite a private secret. `copy.deepcopy` keeps the secret. None of this is reachable from input, and SR-13 already forbids `pickle` | No action beyond SR-13 enforcement (Bandit/Semgrep) |
+| S1-T03-SEC-14 | Info | `core/config.py` | SR-16 | `AEGIS_DATABASE_PASSWORD=…` is silently ignored instead of rejected, so an operator who sets it believes it took effect (it fails safe, because the file is still required) | Optionally fail fast if `AEGIS_*_PASSWORD` (without `_FILE`) is present |
+| S1-T03-SEC-15 | Info | `core/config.py` `read_secret_file` | SR-16 | Only one `\n` is stripped, so a CRLF-terminated file keeps a trailing `\r` in the password ("crlf value ends with CR: True"). This only causes an authentication failure, not a disclosure | Document it, or also strip one `\r\n` |
+| S1-T03-SEC-16 | Info | `core/logging.py` `get_logger` | — | `log.info("e", event=…)` raises `TypeError` (structlog's `event` positional). A future handler logging a dict that contains `event` would turn a log call into a 500 | Avoid `**untrusted_dict` in log calls (reviewer checklist item) |
+
+**Evidence for S1-T03-SEC-01** (throwaway app under uvicorn 0.54.0; `/boom` raises `RuntimeError("db password=S3CRET-VALUE-xyz …")`, `/boom-validation` builds a model with an invalid password):
+
+```
+$ client: GET /boom?token=S3CRET-VALUE-xyz
+HTTP/1.1 500 Internal Server Error
+x-request-id: 01a20131-7162-7f22-b289-229d67168563
+content-type: application/problem+json
+{"type":"https://aegissoc.local/problems/internal-error","title":"Internal server error","status":500,"detail":"An internal error occurred.","instance":"/boom","request_id":"01a20131-…"}
+leak S3CRET: False                                   <- response body is clean
+
+uvicorn.stdout:
+{"logger_name": "aegissoc.errors", "error_type": "RuntimeError", "path": "/boom", "request_id": "01a20131-…", "event": "unhandled_exception", "level": "error", …}
+INFO:     127.0.0.1:54190 - "GET /boom?token=S3CRET-VALUE-xyz HTTP/1.1" 500 Internal Server Error   <- SEC-02
+
+uvicorn.stderr:
+5:   ERROR:    Exception in ASGI application
+       (… full traceback, starlette/middleware/errors.py line 186 re-raise …)
+60:  RuntimeError: db password=S3CRET-VALUE-xyz at /srv/app/x.py
+61:  ERROR:    Exception in ASGI application
+119: pydantic_core._pydantic_core.ValidationError: 2 validation errors for Login
+124:   String should have at least 100 characters [type=string_too_short, input_value='S3CRET-VALUE-xyz', input_type=str]
+```
+
+App logger with `exc_info` (`log_attack.out`): `[exc_info-msg] leak=True … "exception": "Traceback (most recent call last):\n … ValueError: bad password S3CRET-VALUE-xyz"`.
+
+**Evidence for S1-T03-SEC-03 / SEC-08** (`log_attack.out`, excerpts):
+
+```
+[pwd] leak=True        [passwd] leak=True     [credential] leak=True   [csrf] leak=True
+[api_key: ingest_key] leak=True   [private_key] leak=True   [dsn] leak=True
+[fullwidth] leak=True  out='{… "ｐａｓｓｗｏｒｄ": "S3CRET-VALUE-xyz" …}'
+[zero-width] leak=True [cyrillic-a] leak=True
+[set-of-tuples] leak=True out='{… "a": "{(\'password\', \'S3CRET-VALUE-xyz\')}" …}'
+[obj-repr] leak=True   (object whose __repr__ prints a secret; documented limit)
+[event-text] leak=True out='{… "event": "login password=S3CRET-VALUE-xyz" …}'   (documented limit, SEC-08)
+[upper] leak=False  [nested-dict] leak=False  [list-dict] leak=False  [bytes-key] leak=False  [early-logger] leak=False
+```
+
+**Evidence for S1-T03-SEC-04** (`log_blowup.out`): `self-ref dict with 5 keys: 0.05s, 1699313 bytes` / `7 keys: 0.53s, 17431755 bytes`; `big list time 0.86 s, bytes 16888993`.
+
+**Evidence for S1-T03-SEC-05** (`cursor_attack.out`):
+
+```
+[whitespace json] ACCEPTED key=5      [reordered keys] ACCEPTED key=5     [unicode escape in str] ACCEPTED key='A'
+[NUL in str key] ACCEPTED key='a\x00b'                 [lone surrogate] ACCEPTED key='\ud800'
+[-0] ACCEPTED key=0                    [uuid nil] ACCEPTED
+[bool] / [float] / [NaN int] / [1e2 int] / [int as str] / [int64 max+1] / [dup key] / [uuid upper] / [dt +01] / [dt Z] / [padding] / [long 1e6] -> 400 detail='Invalid cursor'
+```
+
+**Evidence for S1-T03-SEC-06 / SEC-07** (`config_attack.out`, `fifo.out`):
+
+```
+[symlink to /etc/hostname] OK …
+[200MiB sparse file] OK …   time 0.72 s maxrss MiB 432
+[url with password] OK repr=Settings(env='local', database_url='postgresql://u:S3CRET-VALUE-xyz@h/db', …)  leak_in_repr=True
+FIFO: exit=124 (124 = killed by timeout, i.e. blocked on FIFO)
+[binary content] ValidationError leak=False: "… secret file …/bin is not valid UTF-8 [type=value_error, input_value={'database_password_file'…}, …]"
+[traceback of binary-content failure] leak: False | mentions UnicodeDecodeError: False
+```
+
+### Threat-model change proposals (for the maintainer; not applied)
+
+1. **T-22** mitigations: add "server and third-party loggers (uvicorn, stdlib) are routed through the same JSON and redaction pipeline; server tracebacks for handled 500s are suppressed or reduced to class plus request id". Add a test case under TC-SEC-20: "a 500 caused by an exception whose message or Pydantic input contains a marker secret leaves no trace of it on stdout or stderr".
+2. **SR-18** verification: "access logs omit query strings (or redact sensitive parameters)" (SEC-02), and "sensitive-key matching is Unicode-normalised" (SEC-03).
+3. **SR-16**: "connection URLs must not contain passwords; secret files must be regular files of bounded size" (SEC-06, SEC-07).
+
+### Verdict (S1-T03 at `61bbdd6`)
+
+| Task | Verdict | Open ≥ High | Open Medium | Open Low / Info |
+|---|---|---|---|---|
+| **S1-T03** | **No blocking findings** | **0** | **1**: SEC-01 (unhandled-exception message and Pydantic `input_value` reach uvicorn's stderr traceback; app `exc_info` is unredacted) | Low: SEC-02 (access log query string), SEC-03 (denylist gaps, Unicode, sets), SEC-04 (exponential expansion / no size cap), SEC-05 (non-canonical cursors; NUL/surrogate str keys → future 500), SEC-06 (secret file type/size), SEC-07 (password in URL settings), SEC-08 (text redaction limit, accepted with Semgrep follow-up). Info: SEC-09 … SEC-16 |
+
+SEC-01 should be fixed, or tracked with an owner and a test, before S1-T06 (authentication) merges, because that is the first code path where secrets reach exceptions. This review approves nothing. Merge stays with the maintainer, and the QA notes are separate.
+
+---
+
+## Re-verification at `e9d1473`: S1-T03 (fix commit for S1-T03-SEC-01 … SEC-16)
+
+| Field | Value |
+|---|---|
+| Branch | `feat/S1-T03-core` |
+| Commit | `e9d1473` (`e9d1473883d5d33b86791ab0a4e8b49ac9e60e15`). Diff reviewed: `git diff 61bbdd6..e9d1473` (10 files, +625/−47; source: `core/config.py`, `core/errors.py`, `core/logging.py`, `core/pagination.py`, `core/request_id.py`) |
+| Date (UTC) | 2026-11-22T18:36Z – 18:38Z |
+| Environment | Same as the initial S1-T03 review (Python 3.12 project venv; structlog 26.1.0, pydantic 2.14.4, FastAPI 0.165.0, Starlette 1.10.0, uvicorn 0.54.0) |
+| Method | Clean export with `git archive e9d1473 apps/api` into the session scratchpad. All attack scripts were rewritten (the earlier scratchpad was gone) and ran with `python -I` against the export. A throwaway FastAPI app wired `RequestIdMiddleware` and `install_error_handlers` and ran under `uvicorn.run(...)` with uvicorn's default log config on `127.0.0.1:18732`, driven by a raw-socket client. Secret files were synthetic files in the scratchpad; the real secrets directory was never read. Marker: `S3CRET-VALUE-xyz` |
+| Requirements | SR-18, SR-16, SR-09; AC-PLAT-10; B-2; T-22, T-14, T-08 |
+| Producer | security-reviewer agent |
+
+**Status: No blocking findings** (0 Critical, 0 High, **1 Medium still open: SEC-01, now narrowed to the server/stdlib path**, 4 Low open or partially fixed, 1 new Low, Info items below).
+
+### File-bounds check (§3)
+
+`git diff --name-only 61bbdd6..e9d1473 | grep -vE '^apps/api/(src/aegissoc/core/|tests/unit/core/)'` prints nothing (exit 1), so the commit stays within S1-T03 bounds. `uv.lock` and `pyproject.toml` are unchanged (`git diff --quiet 61bbdd6 e9d1473 -- uv.lock apps/api/pyproject.toml pyproject.toml` → exit 0). The new imports (`os`, `stat`, `traceback`, `unicodedata`, `urllib.parse`) are stdlib, so no dependency was added. The untracked `qa/**` files in the working tree are not part of `e9d1473` and I did not review them.
+
+### SEC-01: plain answer
+
+**It is not closed by this commit. It is partially fixed.**
+
+- **Fixed (app logger):** `render_exception` replaces structlog's `format_exc_info` and keeps only the frames and the exception type. `log.exception(...)`, `exc_info=True`, `exc_info=<exception>`, `exc_info=sys.exc_info()`, chained exceptions, `ExceptionGroup`, `add_note()` and a Pydantic `ValidationError` with a password input all leave no marker in the app's JSON line (`log_attack.out`, nine `exc_info-*` cases, all `leak=False`). Under uvicorn, `/app-exc` (handled `ValueError("bad password …")` + `log.exception`) gives a JSON line with frames and `ValueError` only.
+- **Still open (server path):** the fix does nothing about stdlib or uvicorn logging. `configure_logging` still configures structlog only (`PrintLoggerFactory`), and Starlette's `ServerErrorMiddleware` still re-raises after the 500 is sent. uvicorn's `uvicorn.error` logger still writes `Exception in ASGI application` and the full traceback, **with the exception message and the Pydantic `input_value`**, to stderr as plain text:
+
+```
+uvicorn.stderr (e9d1473, default uvicorn log config):
+5:   ERROR:    Exception in ASGI application
+60:  RuntimeError: db password=S3CRET-VALUE-xyz at /srv/app/x.py
+61:  ERROR:    Exception in ASGI application
+119: pydantic_core._pydantic_core.ValidationError: 1 validation error for Login
+121:   String should have at least 100 characters [type=string_too_short, input_value='S3CRET-VALUE-xyz', input_type=str]
+```
+
+The response bodies are still clean (`leak S3CRET in response: False` for `/boom` and `/boom-validation`), and the app's own `unhandled_exception` line still holds only `error_type`, `path` and `request_id`. The `core/errors.py` module docstring still says "The server log gets the exception class and the request id, not the message". That is still false for a real deployment.
+
+**What closing it needs, and who owns each part.** The remaining work spans three file sets:
+
+1. **Core code (S1-T03 bounds, so it can be done in this task):** a stdlib bridge in `core/logging.py`. `configure_logging` routes the root, `uvicorn` and `uvicorn.error` loggers through `structlog.stdlib.ProcessorFormatter` with the same `render_exception` + `redact_sensitive` + JSON chain. Or, as an alternative, an outermost pure-ASGI guard in `core/` that swallows the exception re-raised after `http.response.start` was sent.
+2. **`main.py` wiring (S1-T09, which owns `main.py` middleware wiring):** install the guard as the outermost middleware, or call the bridge at app creation.
+3. **uvicorn invocation (S1-T12, DevOps, which owns `backend.Dockerfile` and the compose `api` service):** run uvicorn with `log_config=None` (or a JSON `--log-config`) so its default `dictConfig` does not replace the bridge at startup. The same step closes SEC-02 (`--no-access-log`).
+
+If the maintainer does not want the core part in S1-T03, it has to be recorded as a tracked item with an owner (I suggest S1-T09) and a test. The test: a route raising `ValueError("…S3CRET…")` and an internal `ValidationError` with a password input, run under real uvicorn with **stdout and stderr captured**, asserting the marker is absent (proposed TC under TC-SEC-20). Either way it must close **before S1-T06 (authentication) merges**. Severity stays **Medium**, so it does not block S1-T03.
+
+### Status of each finding
+
+| ID | Sev. | Status at `e9d1473` | Evidence (clean export) |
+|---|---|---|---|
+| SEC-01 | Medium | **Partially fixed.** App `exc_info` is fixed. The uvicorn stderr traceback with message and `input_value` is **open**, and the docstring is still inaccurate (see above) | `log_attack.out` `exc_info-*` all `leak=False`; `uvicorn.stderr` lines 60, 121 |
+| SEC-02 | Low | **Open** (outside `core/`; owner S1-T12 uvicorn flags or S1-T09 JSON access middleware) | `uvicorn.stdout`: `"GET /boom?token=S3CRET-VALUE-xyz HTTP/1.1" 500` |
+| SEC-03 | Low | **Partially fixed.** Now redacted: `pwd`, `passwd`, `credential(s)`, `csrf`, `private_key`, `dsn`, fullwidth, zero-width (U+200B), soft hyphen (U+00AD), `ſecret` (long s), `bytes` keys, sets and frozensets of pairs, lists of pairs, ASGI header pairs (`(b"cookie", …)` dropped, `(b"x-ok", b"1")` kept). **Still logged verbatim:** `ingest_key`, `anthropic_key` (SR-18 names Anthropic keys), `signing_key`, a bare `key`, `bearer`, `jwt`, `otp`. Cyrillic look-alikes and combining marks (`pássword`) are now a documented limit, which I accept | `log_attack.out`: `[ingest_key] leak=True`, `[anthropic_key] leak=True`, `[signing_key] leak=True`, `[key] leak=True`, `[bearer]/[jwt]/[otp] leak=True`; `[cyrillic-a]`, `[combining] leak=True` (documented) |
+| SEC-04 | Low | **Fixed** (a node budget of 2000 per event). A new side effect is reported as SEC-17 | self-ref dict n=5/7/10/50: 0.002–0.003 s, 37–43 KB (was 17.4 MB at n=7); 2,000,000-item list: 0.078 s, 10.9 KB (was 16.9 MB). Strings are still not capped (a 20 MB string gives a 20 MB line, 0.08 s). That is the optional part of the suggestion and stays Info |
+| SEC-05 | Low | **Fixed.** Canonical re-encode check plus NUL and surrogate refusal on both encode and decode | `cursor_attack.out`: whitespace JSON, reordered keys, `A`, `\/`, `-0`, NUL, lone surrogate → 400 `"Invalid cursor"` (cause `None`, context suppressed); the encoder refuses NUL and surrogates with `ValueError`; round-trips OK; 1,000,000 chars → 400 in 585 µs. Residual Info: `\u0001`-style control characters are canonical JSON and still accepted (harmless for PostgreSQL `text`) |
+| SEC-06 | Low | **Fixed.** fd-based `O_NONBLOCK`, `fstat` + `S_ISREG`, at most 4097 bytes read | `config_attack.out`: FIFO, symlink→FIFO, `/dev/zero`, `/dev/null` and a directory → "is not a regular file" (no hang); 200 MiB sparse and 4097 bytes → "too large"; exactly 4096 → OK; whitespace-only → rejected; max RSS 33 MiB (was 432 MiB). A symlink to a regular file is followed (documented, acceptable). Residual Info: a NUL byte inside the value is accepted |
+| SEC-07 | Low | **Partially fixed.** Userinfo passwords are rejected without echo (`postgresql://u:S@h/db`, `redis://:S@h`, even an empty `u:@`), and `hide_input_in_errors=True` keeps the input out of `str(ValidationError)` and the traceback. **Still accepted and printed by `repr(settings)`:** a password in the **query string** (`postgresql://u@h/db?password=S`, `redis://h:6379/0?password=S`, which SQLAlchemy/asyncpg and redis-py both honour) and a libpq keyword DSN (`host=h user=u password=S`) | `[url password in query] OK leak_in_repr=True`, `[redis password in query] OK leak_in_repr=True`, `[libpq keyword DSN] OK leak_in_repr=True`. `exc.errors()` still contains the input by default (`leak_errors_default=True`), as the new `Settings` docstring says (`include_input=False` required) |
+| SEC-08 | Low | **Open, accepted limit** (Semgrep rule pending S1-T13). The docstring now lists it | `[event-text] leak=True` |
+| SEC-09 | Info | **Open** | `/only-post` GET → 405 with `"type": ".../bad-request"`, `"title": "Bad request"`, `allow: POST` |
+| SEC-10 | Info | Open (no change; developer-controlled) | — |
+| SEC-11 | Info | Open, accepted | — |
+| SEC-12 | Info | Open (S1-T09 trusted-proxy work) | — |
+| SEC-13 | Info | Open, no action beyond SR-13 | — |
+| SEC-14 | Info | **Open**: `AEGIS_DATABASE_PASSWORD=…` is still silently ignored | `[plain AEGIS_DATABASE_PASSWORD] OK` |
+| SEC-15 | Info | **Fixed** (one CRLF or LF stripped) | `crlf value ends with CR: False` |
+| SEC-16 | Info | Open (reviewer checklist item) | — |
+
+Other changes I checked (no finding):
+
+- **Request id context:** `bind_contextvars` tokens plus `reset_contextvars` restore the outer binding. On one keep-alive connection, `actor` bound in request 1 is absent from request 2's line, and request 2 gets its own `request_id` (`uvicorn.stdout`). There is no cross-request context leak under uvicorn.
+- **Bodyless statuses:** `HTTPException(204, headers={"X-Extra": "1"})` → `204` with no body, `x-request-id` present, and no duplicate header.
+- **`render_exception` robustness:** a string `exc_info` is dropped (no crash, no echo). `stack_info=True` passes through as a boolean only (there is no `StackInfoRenderer`). Frame locals never appear. Source lines of the frames do appear, which is acceptable because they are code, not data.
+- **`RecursionError` removed from the cursor `except`:** a 180-deep `[[[…]]]` payload inside the 512-character cap → 400. The length cap bounds nesting well below the recursion limit.
+
+### New findings in `e9d1473`
+
+| ID | Severity | Location | Ref | Finding | Fix suggestion |
+|---|---|---|---|---|---|
+| **S1-T03-SEC-17** | Low | `core/logging.py` `_Walk` applied to the whole `event_dict` | SR-18 (log usefulness), T-08, T-14 | **The node budget is shared with the record's own fields, so one large value erases `event`, `level`, `timestamp` and `request_id`.** `info("login_failed", attacker_list=list(range(5000)))` with `request_id` bound renders as `{"logger_name": "t", "attacker_list": [... "[truncated]"], "[truncated]": true}`: there is no `event`, `level`, `timestamp` or `request_id` (`[budget-displacement]` in `log_attack.out`). A sensitive key after the cut-off is still not emitted (`[sensitive-after-budget] leak=False`), so this is not a disclosure. It does make a log line uncorrelatable and unfilterable by level, and anyone who can make the app log a large collection controls that | Walk each top-level value with its own budget (or reserve budget for the top level). Or apply `_Walk` to user-supplied values only and add `level`, `timestamp` and context after redaction. At minimum, never truncate the top-level keys `event`, `level`, `timestamp`, `request_id` and `logger_name`. Add a test |
+
+Info notes (no new IDs): the `MAX_SECRET_BYTES` read is a single `os.read`, which on some network or FUSE filesystems can return fewer bytes and would silently shorten a password (fails closed as an authentication error, no disclosure). The ASGI header pairs that are kept render as `"b'x-ok'"` (`repr` of bytes), which is cosmetic.
+
+### Scanner results at `e9d1473`
+
+| Scanner | Command | Exit | Result | Raw artefact (SHA-256) |
+|---|---|---|---|---|
+| Bandit 1.9.4 | `uv run --frozen bandit -r <export>/apps/api/src -f json -o <scratch>/bandit.json -q` | 0 | 0 issues, 670 LOC (all of `src/`), 0 `#nosec` | `bandit.json` `8fe591cc…8886` |
+| pip-audit (installed env) | `uv run --frozen pip-audit -f json -o <scratch>/pip-audit-env.json` | 0 | No known vulnerabilities | `pip-audit-env.json` `d05fd746…1f66` (identical to the earlier runs) |
+| pip-audit (lockfile, hash-checked) | `uv export --frozen --all-groups --no-emit-project --format requirements-txt` then `pip-audit -r req-locked.txt --require-hashes --disable-pip` | 0 | No known vulnerabilities | `pip-audit-lock.json` `55b68c13…d0d8` (identical) |
+| Gitleaks v8.30.1 (commit range) | `docker run --rm --network none -v "$PWD:/repo:ro" ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0… git /repo --log-opts=61bbdd6..e9d1473 --redact --no-banner` | 0 | `1 commits scanned.` / `no leaks found` | console only |
+| Gitleaks v8.30.1 (working tree) | same image, `dir /repo --redact --no-banner` | 0 | `scanned ~1938437 bytes (1.94 MB)` / `no leaks found` | console only |
+| Semgrep, Trivy | — | — | Not run (they arrive with S1-T13) | — |
+
+Attack-run outputs (scratchpad `…/scratchpad/out/`): `log_attack.out` `f12ddc4f…41ca`, `client.out` `9c6e14bb…dc7f3`, `uvicorn.stdout` `9fbab10b…b9cb3`, `uvicorn.stderr` `0a140557…1b75`, `cursor_attack.out` `3f78092b…c7f3`, `config_attack.out` `6290e8a5…3aa3`. The retention gap from earlier rounds still applies: QA or the orchestrator should re-produce and commit them under `qa/reports/sprint-01/evidence/` if they are needed.
+
+### Threat-model proposals (update)
+
+Proposals 1–3 from the initial S1-T03 review stand unchanged. Addition to SR-16 proposal 3: "connection settings must not carry a password in userinfo, **query parameters or keyword DSNs**" (SEC-07 residual). Addition to SR-18: "the redaction size bound must not remove the record's `event`, `level`, `timestamp` and `request_id`" (SEC-17).
+
+### Verdict (S1-T03 at `e9d1473`)
+
+| Task | Verdict | Open ≥ High | Open Medium | Open Low / Info |
+|---|---|---|---|---|
+| **S1-T03** | **No blocking findings** | **0** | **1**: SEC-01, server/stdlib path only (uvicorn stderr traceback with message and `input_value`). Needs the core bridge or guard plus `main.py` and uvicorn wiring; owner to be assigned by the maintainer (suggested: core part in S1-T03 or S1-T09, uvicorn flags in S1-T12). Must close before S1-T06 merges | Low: SEC-02 (open), SEC-03 (partial: `*_key`, `anthropic_key`, `bearer`, `jwt`, `otp`), SEC-07 (partial: query-string and keyword-DSN passwords), SEC-08 (accepted, Semgrep pending), **SEC-17 (new)**. Fixed: SEC-04, SEC-05, SEC-06, SEC-15. Info open: SEC-09 … SEC-14, SEC-16 |
+
+This review approves nothing. Merge stays with the maintainer, and the QA notes are separate.
